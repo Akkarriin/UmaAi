@@ -1,4 +1,5 @@
-﻿#include <cassert>
+﻿#include <cstdlib>
+#include <cassert>
 #include <iostream>
 #include "Evaluator.h"
 #include "../Search/Search.h"
@@ -241,6 +242,14 @@ static double planCandidateEvaluation(const HandwrittenParams& P, const Game& ga
   if (f.type == MJ_speed)
     weight += P.mj_planSpeedExtra;
   double value = weight * (1 + P.mj_planLevelFactor * f.level);
+  //测试用：环境变量 UMAAI_JK_MASK 按位强制Lv3以上选熟练（第0~4位对应速耐力根智），其余选本能
+  static int jkMask = getenv("UMAAI_JK_MASK") ? atoi(getenv("UMAAI_JK_MASK")) : -1;
+  if (jkMask >= 0 && f.level >= 3)
+  {
+    bool want = (jkMask >> f.type) & 1;
+    if (f.jukuren != want)return -1e8;
+    return value;
+  }
   if (f.jukuren)
     value *= P.mj_planJukurenFactor;
   return value;

@@ -74,6 +74,7 @@ namespace TestAiScore
   std::atomic<int> bestScore = 0;
   std::atomic<int> n = 0;
   std::mutex printLock;
+  std::map<string, pair<int, double>> layoutStats;
   vector<atomic<int>> segmentStats = vector<atomic<int>>(700);//100分一段，700段
   map<int, GameResult> segmentSample;
 
@@ -158,6 +159,17 @@ namespace TestAiScore
       //cout << termcolor::red << "育成结束！" << termcolor::reset << endl;
       GameResult result = getResult(game);
       int score = result.finalScore;
+      //环境变量 UMAAI_LAYOUT：统计最终建成的设施布局
+      if (getenv("UMAAI_LAYOUT"))
+      {
+        string lay;
+        const char* nm[6] = { "速","耐","力","根","智","海" };
+        for (int f = 0; f < 6; f++)
+          lay += string(nm[f]) + to_string(game.mj_facilityLevel[f]) + (game.mj_facilityJukuren[f] ? "熟 " : " ");
+        std::lock_guard<std::mutex> lock(printLock);
+        layoutStats[lay].first++;
+        layoutStats[lay].second += score;
+      }
       /*
       if (score > 42000)
       {
@@ -301,6 +313,14 @@ void main_testAiScore()
       thread.join();
 
   cout << endl << n << "局，搜索量=" << searchN << "，平均分" << totalScore / n << "，标准差" << sqrt(totalScoreSqr / n - totalScore * totalScore / n / n) << "，最高分" << bestScore << endl;
+  if (getenv("UMAAI_LAYOUT"))
+  {
+    vector<pair<int, string>> v;
+    for (auto& [k, c] : layoutStats)v.push_back({ c.first, k });
+    sort(v.rbegin(), v.rend());
+    for (int k = 0; k < min(12, int(v.size())); k++)
+      cout << "LAYOUT " << v[k].second << " " << 100.0 * v[k].first / n << "% 平均" << int(layoutStats[v[k].second].second / v[k].first) << endl;
+  }
 
   for (int j = 0; j < nRanks; ++j)
       if (ranks[j] * 100 + 800 > totalScore / n && segmentStats[ranks[j]] > 0)
