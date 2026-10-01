@@ -332,6 +332,14 @@ void Game::print() const
       else
         throw("未知的decideEvent");
     }
+    else if (stage == ST_plan)
+    {
+      cout << termcolor::cyan << "制定建设计划（" << mj_planSpaceUsed() << "/" << mj_planSpace << "格）：" << termcolor::reset;
+      for (int idx = 0; idx < 12; idx++)
+        if (mj_isPlanCandidateLegal(idx))
+          cout << mj_planCandidate(idx).toString() << " ";
+      cout << endl;
+    }
     else if (stage == ST_distribute)
     {
       cout << termcolor::red << "非操作阶段：正在分配人头" << termcolor::reset << endl;

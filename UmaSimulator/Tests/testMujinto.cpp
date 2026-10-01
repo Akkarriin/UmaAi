@@ -4,6 +4,7 @@
 #include <string>
 #include "../Game/Game.h"
 #include "../NeuralNet/Evaluator.h"
+#include "../Search/Search.h"
 #include "../GameDatabase/GameDatabase.h"
 #include "tests.h"
 using namespace std;
@@ -106,11 +107,16 @@ namespace
     checkEq(g.mj_requiredPt1, 200, "第0期 requiredPt1");
     checkEq(g.mj_requiredPt2, 400, "第0期 requiredPt2");
     checkEq(g.mj_guestNum, 5, "第0期后嘉宾人数（10人-自己5张卡）");
-    int planSpace = 0;
-    for (int i = 0; i < g.mj_planNum; i++)
-      planSpace += g.mj_plan[i].space();
-    checkEq(planSpace, 4, "默认计划占满4格");
-    check(g.mj_plan[0].type == MJ_house, "默认计划先建海之家");
+    //建设计划由ST_plan逐个选择
+    check(g.mj_planPending, "评价会后进入制定计划");
+    g.stage = ST_plan;
+    checkEq(int(g.getAllLegalActions().size()), 6, "Lv1时6种设施都只能选本能");
+    check(!g.isLegal(Action(ST_plan, MJ_speed * 2 + 1)), "Lv1不能选熟练");
+    while (g.stage == ST_plan)
+      g.applyAction(rand, Evaluator::handWrittenStrategy(g));
+    checkEq(g.mj_planSpaceUsed(), 4, "计划占满4格");
+    check(g.mj_plan[0].type == MJ_house, "手写策略先建海之家");
+    check(!g.mj_planPending && g.stage == ST_distribute, "计划选完进入下回合");
 
     g.turn = 5;
     g.mj_addPioneerPt(199);
@@ -156,6 +162,33 @@ namespace
     g.turn = 39;
     g.mj_upgradeAfterCamp();
     checkEq(g.mj_planNum, 0, "合宿结束后补建");
+  }
+
+  void testPlanChoice(mt19937_64& rand)
+  {
+    Game g = newTestGame(rand, 302574);
+    g.turn = 23;
+    g.mj_facilityLevel[MJ_speed] = 2;
+    g.mj_facilityLevel[MJ_stamina] = 3;
+    g.mj_facilityJukuren[MJ_stamina] = true;
+    g.mj_facilityLevel[MJ_house] = 3;
+    g.mj_evaluationAndPlan(rand, 2);
+    g.stage = ST_plan;
+    check(g.isLegal(Action(ST_plan, MJ_speed * 2)) && g.isLegal(Action(ST_plan, MJ_speed * 2 + 1)), "Lv3可以选本能或熟练");
+    check(!g.isLegal(Action(ST_plan, MJ_stamina * 2)) && g.isLegal(Action(ST_plan, MJ_stamina * 2 + 1)), "Lv4沿用熟练");
+    check(!g.isLegal(Action(ST_plan, MJ_house * 2)), "海之家最多Lv3");
+    g.applyAction(rand, Action(ST_plan, MJ_speed * 2 + 1));
+    check(!g.isLegal(Action(ST_plan, MJ_speed * 2)), "同一期计划里同种设施只能一次");
+    checkEq(g.mj_planSpaceUsed(), 1, "速Lv3熟练1格");
+    //第2期 linkMode2 是6格
+    while (g.stage == ST_plan)
+      g.applyAction(rand, g.getAllLegalActions()[0]);
+    check(g.mj_planSpaceUsed() <= 6, "计划不超过格数");
+    check(!g.mj_hasPlanCandidate() || g.mj_planSpaceUsed() == 6, "选到放不下为止");
+    //第5次评价会后没有计划
+    g.turn = 59;
+    g.mj_evaluationAndPlan(rand, 5);
+    check(!g.mj_planPending, "第5次评价会后不制定计划");
   }
 
   void testTrainingValue(mt19937_64& rand)
@@ -264,12 +297,12 @@ namespace
     g.personDistribution[0][3] = PS_guest0 + 3;
     g.mj_calculateIslandTraining(nullptr);
     checkEq(g.mj_islandValueLower[5], 9, "岛训练 4嘉宾 pt");
-    checkEq(g.mj_islandPioneerPt, 60 + 4 * 3, "岛训练 4人 发展pt");
+    checkEq(g.mj_islandPioneerPt, 60 + 4 * 6, "岛训练 4人 发展pt（umasim ×6）");
 
-    //设施没建时站在那里的人不参加
+    //按 umasim，站在未建设施上的人也照常参加（只是没有设施加成）
     g.mj_facilityLevel[MJ_speed] = 0;
     g.mj_calculateIslandTraining(nullptr);
-    checkEq(g.mj_islandValueLower[5], 8, "岛训练 未建设施的嘉宾不参加");
+    checkEq(g.mj_islandValueLower[5], 9, "岛训练 未建设施上的嘉宾也参加");
 
     //memo：智设施Lv1、1张训练效果0的卡，智+13（11×1.2×1.05）；再加1个嘉宾+14（11×1.2×1.07）
     clearDistribution(g);
@@ -297,7 +330,7 @@ namespace
     zeroCardEffect(g, 3);
     g.persons[1].friendship = 100;
     g.persons[1].cardParam.cardType = 4;
-    g.persons[3].friendship = 100;
+    g.persons[3].friendship = 85;
     g.persons[3].cardParam.cardType = 0;
     g.personDistribution[4][0] = 1;
     g.personDistribution[0][0] = 3;
@@ -305,24 +338,40 @@ namespace
     checkEq(g.mj_islandFriendPositions, 2, "岛训练 友情设施数");
     int lower = g.mj_islandValueLower[4];
     checkEq(g.mj_islandValue[4], lower + lower * (25 + 5) / 100, "岛训练 2设施友情 上层+25%+海之家5%");
-    checkEq(g.mj_islandPioneerPt, (60 + 2 * 3) * 120 / 100, "岛训练 友情时发展pt+20%");
+    checkEq(g.mj_islandPioneerPt, (60 + 2 * 6) * 120 / 100, "岛训练 友情时发展pt+20%");
 
-    //执行：券-1，普通卡羁绊+10
+    //执行：券-1，参加的卡羁绊+10，没参加的不变（umasim）
     int bond0 = g.persons[2].friendship;
+    int bond1 = g.persons[3].friendship;
     int status0 = g.fiveStatus[4];
     int value = g.mj_islandValue[4];
     g.mj_applyIslandTraining(rand);
     checkEq(g.mj_ticket, 0, "岛训练 消耗1张券");
-    checkEq(g.persons[2].friendship - bond0, 10, "岛训练 未参加的卡羁绊也+10");
+    checkEq(g.persons[2].friendship - bond0, 0, "岛训练 没参加的卡羁绊不变");
+    checkEq(g.persons[3].friendship - bond1, std::min(10, 100 - bond1), "岛训练 参加的卡羁绊+10");
     check(g.fiveStatus[4] - status0 >= value, "岛训练 属性增加");
     g.stage = ST_train;
     check(!g.mj_isIslandTrainingAvailable(), "没券时不能岛训练");
   }
 
-  //跑一局，每回合打印剧本状态
-  void runOneGame(mt19937_64& rand)
+  //蒙特卡洛搜索能处理建设计划阶段
+  void testPlanSearch(mt19937_64& rand)
   {
     Game g = newTestGame(rand, 302574);
+    g.continueUntilNextDecision(rand);
+    while (!g.isEnd() && g.stage != ST_plan)
+      g.applyActionUntilNextDecision(rand, Evaluator::handWrittenStrategy(g));
+    check(g.stage == ST_plan, "对局中会进入制定计划阶段");
+    Search search(nullptr, 16, 2, SearchParam(64, 0));
+    Action a = search.runSearch(g, rand);
+    check(a.stage == ST_plan && g.isLegal(a), "搜索在制定计划阶段给出合法选择：" + a.toString(g));
+  }
+
+  //跑一局，每回合打印剧本状态
+  void runOneGame(mt19937_64& rand, int firstCard, const string& label)
+  {
+    cout << "---- 示例对局：" << label << " ----" << endl;
+    Game g = newTestGame(rand, firstCard);
     g.continueUntilNextDecision(rand);
     const int checkpoints[8] = { 2,12,24,36,40,48,60,78 };//这些回合结束后打印
     int nextCheckpoint = 0;
@@ -365,10 +414,14 @@ void main_testMujinto()
     testLinkMode(rand);
     testPioneerPt(rand);
     testBuildAndEvaluation(rand);
+    testPlanChoice(rand);
     testTrainingValue(rand);
     testIslandTraining(rand);
+    testPlanSearch(rand);
     cout << "自检：" << checkCount - failCount << "/" << checkCount << " 通过" << endl;
-    runOneGame(rand);
+    runOneGame(rand, 302574, "SSR塔克满破");
+    runOneGame(rand, 101284, "R塔克满破");
+    runOneGame(rand, 302474, "不带塔克");
   }
   catch (const char* e)
   {

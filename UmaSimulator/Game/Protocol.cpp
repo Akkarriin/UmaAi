@@ -117,6 +117,11 @@ bool Game::loadGameFromJson(std::string jsonStr)
       for (auto& f : j["mj_plan"])
         mj_plan[mj_planNum++] = MujintoFacility(f["type"], f["level"], f.value("jukuren", false));
     }
+    //正在制定建设计划时（stage=ST_plan）需要这一期的总格数
+    mj_planPending = j.value("mj_planPending", false);
+    mj_planSpace = j.value("mj_planSpace", 0);
+    if (stage == ST_plan)
+      mj_planPending = true;
     mj_pioneerPt = j.value("mj_pioneerPt", 0);
     mj_requiredPt1 = j.value("mj_requiredPt1", 0);
     mj_requiredPt2 = j.value("mj_requiredPt2", 0);

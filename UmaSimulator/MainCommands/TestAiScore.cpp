@@ -1,4 +1,5 @@
-﻿//测试训练属性值算法
+﻿#include <cstdlib>
+//测试训练属性值算法
 #include <iostream>
 #include <random>
 #include <sstream>
@@ -252,7 +253,9 @@ void main_testAiScore()
   GameDatabase::loadTranslation("../db/text_data.json");
   GameDatabase::loadUmas("../db/umaDB.json");
   GameDatabase::loadDBCards("../db/cardDB.json");
-  test = TestConfig::loadFile("../ConfigTemplate/testConfig.json");  
+  //可以用环境变量 UMAAI_TEST_CONFIG 指定别的配置文件，方便比较不同卡组
+  const char* configPath = getenv("UMAAI_TEST_CONFIG");
+  test = TestConfig::loadFile(configPath != nullptr ? configPath : "../ConfigTemplate/testConfig.json");
   
   // 独立测卡工具直接使用当前目录
   /*

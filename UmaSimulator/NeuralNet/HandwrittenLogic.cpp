@@ -106,7 +106,9 @@ static double pioneerPtEvaluation(const Game& game, int pioneerPt)
 static double keepTicketEvaluation(const Game& game)
 {
   int usableTurns = 0;//以后还能岛训练的回合数
-  for (int t = game.turn + 1; t < 72; t++)
+  //经典年合宿结束时多半会补建并把券数设为1，手里的券要在合宿前用掉
+  int horizon = game.turn < 36 ? 36 : 72;
+  for (int t = game.turn + 1; t < horizon; t++)
   {
     bool camp = (t >= 36 && t <= 39) || (t >= 60 && t <= 63);
     if (!camp && !game.isRacingTurn[t])
@@ -194,6 +196,33 @@ double getRestOutingEvaluation(const Game& game, Action& bestAction, double vita
   return bestValue;
 }
 
+//无人岛：建设计划里加一个设施的估值。海之家Lv1最优先，其次按卡组里各类型支援卡的张数升级，本能优于熟练
+const double mj_planHouseValue[4] = { 0, 1000, 3, 4 };//海之家Lv1~3
+const double mj_planSpeedExtra = 1.0;//速度设施额外的权重
+const double mj_planJukurenFactor = 0.6;//熟练相对本能的估值
+const double mj_planBaseWeight = 1;//卡组里没有的类型的权重
+const double mj_planCardWeight = 2;//卡组里每张该类型支援卡增加的权重
+const double mj_planLevelFactor = 0.15;//等级越高越优先
+static double planCandidateEvaluation(const Game& game, int idx)
+{
+  MujintoFacility f = game.mj_planCandidate(idx);
+  if (f.type == MJ_house)
+    return mj_planHouseValue[f.level];
+  double weight = mj_planBaseWeight;
+  for (int i = 0; i < 6; i++)
+  {
+    const Person& p = game.persons[i];
+    if (p.personType == PersonType_card && p.cardParam.cardType == f.type)
+      weight += mj_planCardWeight;
+  }
+  if (f.type == MJ_speed)
+    weight += mj_planSpeedExtra;
+  double value = weight * (1 + mj_planLevelFactor * f.level);
+  if (f.jukuren)
+    value *= mj_planJukurenFactor;
+  return value;
+}
+
 Action Evaluator::handWrittenStrategy(const Game& game)
 {
   auto allActions = game.getAllLegalActions();
@@ -202,6 +231,21 @@ Action Evaluator::handWrittenStrategy(const Game& game)
   if (allActions.size() == 0)
     return Action();
 
+  if (game.stage == ST_plan)
+  {
+    Action best = allActions[0];
+    double bestValue = -1e9;
+    for (const Action& a : allActions)
+    {
+      double v = planCandidateEvaluation(game, a.idx);
+      if (v > bestValue)
+      {
+        bestValue = v;
+        best = a;
+      }
+    }
+    return best;
+  }
   if (game.stage == ST_decideEvent)
   {
     if (game.decidingEvent == DecidingEvent_outing)

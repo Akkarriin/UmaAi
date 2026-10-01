@@ -82,6 +82,7 @@ enum StageEnum :int16_t
   ST_decideEvent,//选择友人出行前
   ST_event,//处理事件前
   ST_action_randomize,//仅用于action，表示ST_train前的随机化
+  ST_plan,//无人岛：评价会后制定建设计划，每次往计划里加一个设施，直到格数用完。idx=设施类型*2+是否熟练
 };
 
 //需要处理的含选择项的事件
@@ -114,7 +115,7 @@ struct Action
   static const int MAX_ACTION_TYPE = 9;
   
   int16_t stage;//这个action是作用于哪个stage的，如果是ST_distribute、ST_event这些不需要做出任何选择的stage，则无视以下内容
-  int16_t idx;//stage=ST_train时为训练，01234速耐力根智，5休息，6外出，7比赛，8岛训练。stage=ST_decideEvent时是选第几个
+  int16_t idx;//stage=ST_train时为训练，01234速耐力根智，5休息，6外出，7比赛，8岛训练。stage=ST_decideEvent时是选第几个。stage=ST_plan时为设施类型*2+是否熟练
   Action();//空Action
   Action(int st);//ST_distribute、ST_event这些不需要做出任何选择的stage
   Action(int st, int idx);//需要做选择的stage
@@ -185,6 +186,8 @@ struct Game
   int16_t mj_requiredPt1;//建成前半计划（并获得岛训练券）需要的发展pt
   int16_t mj_requiredPt2;//建成全部计划（并获得岛训练券）需要的发展pt，也是大好评需要的发展pt
   int16_t mj_ticket;//岛训练券
+  bool mj_planPending;//评价会后还在制定建设计划（ST_plan）
+  int16_t mj_planSpace;//这一期建设计划的总格数
   int16_t mj_bonusTrainingEffect;//评价会加成：普通训练的训练效果%（上层）
   int16_t mj_bonusHint;//评价会加成：hint发生率%
   int16_t mj_bonusPioneerPt;//评价会加成：获得发展pt%
@@ -345,19 +348,27 @@ public:
   int mj_positionRateUp() const;//海之家的支援卡出现率提升（不在率降低）
   int mj_hintRateUp(int tra) const;//设施与评价会的hint发生率提升%
   bool mj_alwaysHint(int tra) const;//熟练设施让岛合宿必定hint
+  bool mj_campHintAll(int tra) const;//熟练Lv5：岛合宿时这个训练里所有hint都生效
   int mj_trainingEffectByFriend() const;//海之家：岛合宿时每个友情训练的卡+5%（下层乘算）
   int mj_calcTrainingPioneerPt(int headNum, bool shining) const;//训练获得的发展pt
   int mj_calcRacePioneerPt(bool isGoalRace) const;//比赛获得的发展pt
   bool mj_canGainPioneerPt() const;//这个回合是否能获得发展pt
   void mj_addPioneerPt(int pt);//增加发展pt，达到半数/全部时建设计划里的设施（合宿期间延后）
   void mj_buildPlan(bool all);//建成计划里的前半（达到requiredPt1）或者全部设施，并获得岛训练券
+  int mj_ptToNextTicket() const;//离下一次建设（拿券）还差多少发展pt，已经全建完则返回很大的数
+  bool mj_pioneerPtWouldWasteTicket(int pt) const;//有券时再拿pt发展pt会不会让券溢出
   void mj_upgradeAfterCamp();//经典年合宿结束后补建合宿期间达到条件的设施
   void mj_evaluationAndPlan(std::mt19937_64& rand, int phase);//评价会（phase>=1）与制定下一期建设计划
-  void mj_makeDefaultPlan(int phase);//默认的建设计划（手写规则，第4步再做成可选择的阶段）
+  bool mj_isPlanCandidateLegal(int idx) const;//ST_plan时能不能往计划里加这个设施，idx=类型*2+熟练
+  int mj_planSpaceUsed() const;//计划里已经用掉的格数（含已建成的部分）
+  bool mj_hasPlanCandidate() const;//还有没有能加进计划的设施
+  MujintoFacility mj_planCandidate(int idx) const;//idx对应的下一级设施
+  void mj_addPlan(int idx);//往计划里加一个设施，加满后进入ST_distribute
   void mj_addGuests(std::mt19937_64& rand, int totalCount);//PJ参加人数增加到totalCount（含自己的非友人卡）
   void mj_addDeyilvNextTurnAll(int value);//所有支援卡下回合得意率+value
   bool mj_isIslandTrainingAvailable() const;//这回合能不能岛训练
   int mj_islandTrainingEffect(int status) const;//设施给岛训练的训练效果%（上层）
+  int mj_islandMembers(int* memberId, int* memberPos) const;//岛训练的参加者和位置（0~4设施，5海之家），返回人数
   void mj_calculateIslandTraining(std::mt19937_64* rand);//安排海之家并计算岛训练数值。rand为空时不重新安排海之家
   void mj_applyIslandTraining(std::mt19937_64& rand);//进行岛训练
 

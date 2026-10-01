@@ -118,6 +118,8 @@ void Game::mj_init()
     mj_deyilvBonusNext[i] = 0;
   }
   mj_planNum = 0;
+  mj_planPending = false;
+  mj_planSpace = 0;
   mj_pioneerPt = 0;
   mj_requiredPt1 = 0;
   mj_requiredPt2 = 0;
@@ -185,15 +187,26 @@ int Game::mj_hintRateUp(int tra) const
 {
   int total = mj_bonusHint;
   int houseLevel = mj_facilityLevel[MJ_house];
-  total += houseLevel == 3 ? 200 : houseLevel == 2 ? 100 : 0;
-  if (isCampTraining() && mj_facilityJukuren[tra] && mj_facilityLevel[tra] == 3)
-    total += 200;
+  int houseHint = houseLevel == 3 ? 200 : houseLevel == 2 ? 100 : 0;
+  total += houseHint;
+  if (isCampTraining())
+  {
+    //按 umasim：岛合宿时海之家的hint率再算一次，同类熟练Lv3再+200
+    total += houseHint;
+    if (tra >= 0 && tra < 5 && mj_facilityJukuren[tra] && mj_facilityLevel[tra] == 3)
+      total += 200;
+  }
   return total;
 }
 
 bool Game::mj_alwaysHint(int tra) const
 {
-  return isCampTraining() && mj_facilityJukuren[tra] && mj_facilityLevel[tra] >= 4;
+  return isCampTraining() && tra >= 0 && tra < 5 && mj_facilityJukuren[tra] && mj_facilityLevel[tra] >= 4;
+}
+
+bool Game::mj_campHintAll(int tra) const
+{
+  return isCampTraining() && tra >= 0 && tra < 5 && mj_facilityJukuren[tra] && mj_facilityLevel[tra] == 5;
 }
 
 int Game::mj_trainingEffectByFriend() const
@@ -251,11 +264,23 @@ void Game::mj_buildPlan(bool all)
     mj_plan[i - built] = mj_plan[i];
   mj_planNum -= built;
 
-  //岛训练券，资深年后半以外最多持有1张
-  if (turn >= 60)
-    mj_ticket += 1;
-  else
-    mj_ticket = 1;
+  //岛训练券：按 umasim，建设时券数变成1（已经有券的话不叠加）
+  mj_ticket = 1;
+}
+
+int Game::mj_ptToNextTicket() const
+{
+  if (mj_pioneerPt < mj_requiredPt1)
+    return mj_requiredPt1 - mj_pioneerPt;
+  if (mj_pioneerPt < mj_requiredPt2)
+    return mj_requiredPt2 - mj_pioneerPt;
+  return 100000;
+}
+
+bool Game::mj_pioneerPtWouldWasteTicket(int pt) const
+{
+  //umasim 用的余量是70：差得不到 pt+70 就当作会拿到下一张券
+  return mj_ticket > 0 && mj_ptToNextTicket() < pt + 70;
 }
 
 void Game::mj_upgradeAfterCamp()
@@ -305,49 +330,68 @@ void Game::mj_evaluationAndPlan(std::mt19937_64& rand, int phase)
   mj_requiredPt1 = space / 2 * 100;
   mj_requiredPt2 = space * 100;
   mj_planNum = 0;
-  if (phase < 5)
-    mj_makeDefaultPlan(phase);
+  mj_planSpace = space;
+  //第5次评价会后没有计划；其余的计划在下回合开始前的ST_plan里逐个选
+  mj_planPending = phase < 5;
+  if (mj_planPending && !mj_hasPlanCandidate())
+    mj_planPending = false;
 }
 
-void Game::mj_makeDefaultPlan(int phase)
+MujintoFacility Game::mj_planCandidate(int idx) const
 {
-  //手写的默认计划：海之家Lv1最优先，然后按卡组类型（速度额外优先）升级，同类设施倾向于继续升级，本能优先
-  //每种设施在一次计划里最多出现一次，按优先度贪心填满格数
-  int space = GameConstants::MJ_FacilitySpace[mj_linkMode][phase];
-  double weight[6] = { 2.5,1,1,1,1,0 };
-  for (int i = 0; i < 6; i++)
+  int type = idx / 2;
+  bool jukuren = idx % 2 == 1;
+  int level = mj_facilityLevel[type] + 1;
+  return MujintoFacility(type, level, jukuren);
+}
+
+int Game::mj_planSpaceUsed() const
+{
+  int used = 0;
+  for (int i = 0; i < mj_planNum; i++)
+    used += mj_plan[i].space();
+  return used;
+}
+
+bool Game::mj_isPlanCandidateLegal(int idx) const
+{
+  if (!mj_planPending)return false;
+  if (idx < 0 || idx >= 12)return false;
+  int type = idx / 2;
+  bool jukuren = idx % 2 == 1;
+  //每种设施在一期计划里最多一次
+  for (int i = 0; i < mj_planNum; i++)
+    if (mj_plan[i].type == type)return false;
+  int level = mj_facilityLevel[type] + 1;
+  int maxLevel = type == MJ_house ? 3 : 5;
+  if (level > maxLevel)return false;
+  //Lv3时选本能或熟练，Lv4、5沿用，Lv1、2和海之家只有本能
+  if (type == MJ_house || level <= 2)
   {
-    if (persons[i].personType == PersonType_card)
-      weight[persons[i].cardParam.cardType] += 1;
+    if (jukuren)return false;
   }
-  bool used[6] = { false,false,false,false,false,false };
-  int rest = space;
-  mj_planNum = 0;
-  while (true)
+  else if (level >= 4)
   {
-    int best = -1;
-    double bestScore = -1;
-    MujintoFacility bestFacility;
-    for (int t = 0; t < 6; t++)
-    {
-      if (used[t])continue;
-      int cur = mj_facilityLevel[t];
-      int maxLevel = t == MJ_house ? 3 : 5;
-      if (cur >= maxLevel)continue;
-      MujintoFacility f(t, cur + 1, cur >= 3 ? mj_facilityJukuren[t] : false);
-      if (f.space() > rest)continue;
-      double score = t == MJ_house ? (cur == 0 ? 1000 : 0.5) : weight[t] * (1 + 0.2 * cur);
-      if (score > bestScore)
-      {
-        bestScore = score;
-        best = t;
-        bestFacility = f;
-      }
-    }
-    if (best < 0)break;
-    used[best] = true;
-    mj_plan[mj_planNum++] = bestFacility;
-    rest -= bestFacility.space();
+    if (jukuren != mj_facilityJukuren[type])return false;
+  }
+  return MujintoFacility(type, level, jukuren).space() <= mj_planSpace - mj_planSpaceUsed();
+}
+
+bool Game::mj_hasPlanCandidate() const
+{
+  for (int idx = 0; idx < 12; idx++)
+    if (mj_isPlanCandidateLegal(idx))return true;
+  return false;
+}
+
+void Game::mj_addPlan(int idx)
+{
+  assert(stage == ST_plan && mj_isPlanCandidateLegal(idx));
+  mj_plan[mj_planNum++] = mj_planCandidate(idx);
+  if (!mj_hasPlanCandidate())
+  {
+    mj_planPending = false;
+    stage = ST_distribute;
   }
 }
 
@@ -416,65 +460,11 @@ bool Game::mj_isIslandTrainingAvailable() const
   return stage == ST_train && !isRacing && mj_ticket > 0 && !isCampTraining();
 }
 
-void Game::mj_calculateIslandTraining(std::mt19937_64* rand)
+int Game::mj_islandMembers(int* memberId, int* memberPos) const
 {
-  if (!mj_isIslandTrainingAvailable() && rand != nullptr)
-  {
-    mj_islandHouseNum = 0;
-    for (int i = 0; i < 5; i++)
-      mj_islandHouse[i] = -1;
-    for (int i = 0; i < 6; i++)
-      mj_islandValue[i] = mj_islandValueLower[i] = 0;
-    mj_islandPioneerPt = 0;
-    return;
-  }
-
-  //每个人头的位置：0~4设施，5海之家，-1不参加
-  //所在设施已建成就留在原地，否则（包括没站位的）去海之家，最多5人，友人>支援卡>嘉宾
-  if (rand != nullptr)
-  {
-    bool atFacility[MAX_INFO_PERSON_NUM] = { false,false,false,false,false,false };
-    bool guestAtFacility[MJ_MAX_GUEST] = {};
-    for (int t = 0; t < 5; t++)
-    {
-      if (mj_facilityLevel[t] == 0)continue;
-      for (int h = 0; h < 5; h++)
-      {
-        int p = personDistribution[t][h];
-        if (p >= 0 && p < 6)atFacility[p] = true;
-        else if (p >= PS_guest0 && p < PS_guestEnd)guestAtFacility[p - PS_guest0] = true;
-      }
-    }
-    vector<int> friends, cards, guests;
-    for (int p = 0; p < 6; p++)
-    {
-      if (atFacility[p])continue;
-      if (persons[p].personType == PersonType_card)cards.push_back(p);
-      else if (persons[p].personType == PersonType_scenarioCard && turn >= 2)friends.push_back(p);
-    }
-    for (int g = 0; g < mj_guestNum; g++)
-      if (!guestAtFacility[g])guests.push_back(PS_guest0 + g);
-    std::shuffle(cards.begin(), cards.end(), *rand);
-    std::shuffle(guests.begin(), guests.end(), *rand);
-    mj_islandHouseNum = 0;
-    for (int i = 0; i < 5; i++)
-      mj_islandHouse[i] = -1;
-    if (mj_facilityLevel[MJ_house] > 0)
-    {
-      for (auto list : { &friends,&cards,&guests })
-        for (int p : *list)
-          if (mj_islandHouseNum < 5)
-            mj_islandHouse[mj_islandHouseNum++] = p;
-    }
-  }
-
-  //列出所有参加者及其位置
-  int memberId[30];
-  int memberPos[30];
   int memberNum = 0;
   for (int t = 0; t < 5; t++)
   {
-    if (mj_facilityLevel[t] == 0)continue;
     for (int h = 0; h < 5; h++)
     {
       int p = personDistribution[t][h];
@@ -491,6 +481,61 @@ void Game::mj_calculateIslandTraining(std::mt19937_64* rand)
     memberPos[memberNum] = 5;
     memberNum++;
   }
+  return memberNum;
+}
+
+void Game::mj_calculateIslandTraining(std::mt19937_64* rand)
+{
+  if (!mj_isIslandTrainingAvailable() && rand != nullptr)
+  {
+    mj_islandHouseNum = 0;
+    for (int i = 0; i < 5; i++)
+      mj_islandHouse[i] = -1;
+    for (int i = 0; i < 6; i++)
+      mj_islandValue[i] = mj_islandValueLower[i] = 0;
+    mj_islandPioneerPt = 0;
+    return;
+  }
+
+  //每个人头的位置：0~4设施，5海之家（按 umasim：站位的人留在原地，不管设施建没建）
+  //没站位的人去海之家，最多5人，友人>支援卡>嘉宾，同类随机（不管海之家建没建）
+  if (rand != nullptr)
+  {
+    bool placed[MAX_INFO_PERSON_NUM] = { false,false,false,false,false,false };
+    bool guestPlaced[MJ_MAX_GUEST] = {};
+    for (int t = 0; t < 5; t++)
+    {
+      for (int h = 0; h < 5; h++)
+      {
+        int p = personDistribution[t][h];
+        if (p >= 0 && p < 6)placed[p] = true;
+        else if (p >= PS_guest0 && p < PS_guestEnd)guestPlaced[p - PS_guest0] = true;
+      }
+    }
+    vector<int> friends, cards, guests;
+    for (int p = 0; p < 6; p++)
+    {
+      if (placed[p])continue;
+      if (persons[p].personType == PersonType_card)cards.push_back(p);
+      else if (persons[p].personType == PersonType_scenarioCard)friends.push_back(p);
+    }
+    for (int g = 0; g < mj_guestNum; g++)
+      if (!guestPlaced[g])guests.push_back(PS_guest0 + g);
+    std::shuffle(cards.begin(), cards.end(), *rand);
+    std::shuffle(guests.begin(), guests.end(), *rand);
+    mj_islandHouseNum = 0;
+    for (int i = 0; i < 5; i++)
+      mj_islandHouse[i] = -1;
+    for (auto list : { &friends,&cards,&guests })
+      for (int p : *list)
+        if (mj_islandHouseNum < 5)
+          mj_islandHouse[mj_islandHouseNum++] = p;
+  }
+
+  //列出所有参加者及其位置（理事长和记者不参加岛训练）
+  int memberId[30];
+  int memberPos[30];
+  int memberNum = mj_islandMembers(memberId, memberPos);
 
   int supportAtFacility = 0, guestAtFacilityNum = 0, supportAtHouse = 0;
   int friendCount = 0;
@@ -576,9 +621,9 @@ void Game::mj_calculateIslandTraining(std::mt19937_64* rand)
     mj_islandValue[s] = lower + upper;
   }
 
-  //发展pt：memo为 (60+配置人数×3)×(100+评价会加成+友情20)/100
+  //发展pt：按 umasim，(60+参加人数×6)×(100+评价会加成+友情20)/100，参加人数含嘉宾和海之家
   if (mj_canGainPioneerPt())
-    mj_islandPioneerPt = (60 + memberNum * 3) * (100 + mj_bonusPioneerPt + (friendCount > 0 ? 20 : 0)) / 100;
+    mj_islandPioneerPt = (60 + memberNum * 6) * (100 + mj_bonusPioneerPt + (friendCount > 0 ? 20 : 0)) / 100;
   else
     mj_islandPioneerPt = 0;
 }
@@ -593,44 +638,30 @@ void Game::mj_applyIslandTraining(std::mt19937_64& rand)
     addStatus(i, mj_islandValue[i]);
   skillPt += mj_islandValue[5];
 
-  //全部支援卡羁绊：普通+10，友人+7
-  for (int p = 0; p < 6; p++)
-  {
-    if (persons[p].personType == PersonType_card)
-      addJiBan(p, 10, 0);
-    else if (persons[p].personType == PersonType_scenarioCard && turn >= 2)
-      addJiBan(p, 7, 0);
-  }
-
-  //参加者（设施+海之家）
-  vector<int> participants;
-  for (int t = 0; t < 5; t++)
-  {
-    if (mj_facilityLevel[t] == 0)continue;
-    for (int h = 0; h < 5; h++)
-    {
-      int p = personDistribution[t][h];
-      if (p < 0)break;
-      participants.push_back(p);
-    }
-  }
-  for (int i = 0; i < mj_islandHouseNum; i++)
-    participants.push_back(mj_islandHouse[i]);
+  //参加者（设施+海之家）。按 umasim，羁绊只给参加的支援卡：和训练一样再+3，即普通+10，友人+7
+  int memberId[30];
+  int memberPos[30];
+  int memberNum = mj_islandMembers(memberId, memberPos);
 
   vector<int> hintCards;
   vector<int> trainedCards;
   bool clickFriend = false;
-  for (int p : participants)
+  for (int m = 0; m < memberNum; m++)
   {
+    int p = memberId[m];
     if (p >= 6)continue;
     if (persons[p].personType == PersonType_card)
     {
+      addJiBan(p, 10, 0);
       trainedCards.push_back(p);
       if (persons[p].isHint)
         hintCards.push_back(p);
     }
-    else if (p == friend_personId)
+    else if (p == friend_personId && friend_type != 0)
+    {
+      addJiBan(p, 7, 0);
       clickFriend = true;
+    }
   }
   if (hintCards.size() > 0)
   {
@@ -697,6 +728,7 @@ void Game::handleFriendUnlock(std::mt19937_64& rand)
     addStatusFriend(0, 6);
     addStatusFriend(1, 6);
     addStatusFriend(3, 6);
+    skillPt += int(5 * gameSettings.hintPtRate);//直線回復Lv5
   }
   friend_stage = FriendStage_afterUnlockOutgoing;
   printEvents("友人外出解锁！");
@@ -751,16 +783,18 @@ void Game::runFriendOutgoing(std::mt19937_64& rand, bool chooseUpper)
   }
   friend_outgoingNum++;
 
-  //出行后的选择：上是pt+3和发展pt（Lv20为30，Lv50为80，中间按线性估计），下只有pt+3，总是选上
+  //出行后的选择：上是pt+3和发展pt（Lv50为80，Lv20为30，中间按线性估计），下只有pt+3
+  //按 umasim 的选法：有券而且这些发展pt会让券溢出（券最多1张）时选下，否则选上
   skillPt += 3;
-  if (mj_canGainPioneerPt())
-    mj_addPioneerPt(30 + (friend_level - 20) * 50 / 30);
+  int outingPt = 30 + (friend_level - 20) * 50 / 30;
+  if (mj_canGainPioneerPt() && !mj_pioneerPtWouldWasteTicket(outingPt))
+    mj_addPioneerPt(outingPt);
 }
 
 void Game::handleFriendFixedEvent()
 {
   if (friend_type == 0)return;//没友人卡
-  if (friend_stage < FriendStage_beforeUnlockOutgoing)return;//没点过就没事件
+  if (friend_stage < FriendStage_afterUnlockOutgoing)return;//没解锁出行就没事件
   if (turn == 23)//经典年新年
   {
     addVitalFriend(15);

@@ -17,7 +17,7 @@ const double GameConstants::FriendUnlockOutgoingProbEveryTurnLowFriendship = 0.0
 const double GameConstants::FriendUnlockOutgoingProbEveryTurnHighFriendship = 0.07;
 
 const double GameConstants::FriendClickEventProb = 0.4;
-const double GameConstants::FriendClickEventGreatProb = 0.5;
+const double GameConstants::FriendClickEventGreatProb = 0.1;//按 umasim
 
 const std::vector<int> GameConstants::LinkCharas = { 1021, 1027, 1031, 1040, 1069 };//玉藻十字 目白赖恩 爱丽丝风神 黄金城市 樱花千代王（塔克布莱恩不可育成）
 

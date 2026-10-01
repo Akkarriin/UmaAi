@@ -602,7 +602,15 @@ void Game::applyNormalTraining(std::mt19937_64& rand, int16_t train, bool succes
     //嘉宾没有额外效果
   }
 
-  if (hintCards.size() > 0)
+  if (mj_campHintAll(train))//熟练Lv5的岛合宿：所有hint都生效
+  {
+    for (int hintCard : hintCards)
+    {
+      addJiBan(hintCard, 5, 1);
+      addHintWithoutJiban(rand, hintCard);
+    }
+  }
+  else if (hintCards.size() > 0)
   {
     int hintCard = hintCards[rand() % hintCards.size()];//随机一张卡出hint
     addJiBan(hintCard, 5, 1);
@@ -727,6 +735,8 @@ void Game::decideEvent(std::mt19937_64& rand, int16_t idx)
 
 bool Game::isLegal(Action action) const
 {
+  if (action.stage == ST_plan)
+    return stage == ST_plan && mj_isPlanCandidateLegal(action.idx);
   if (action.stage != ST_train)
     return false;
   if (isRacing)
@@ -988,7 +998,7 @@ void Game::checkEvent(std::mt19937_64& rand)
 
   //回合数+1
   turn++;
-  stage = ST_distribute;
+  stage = mj_planPending ? ST_plan : ST_distribute;
 
   //塔克布莱恩给的得意率只持续到下一回合
   for (int i = 0; i < 6; i++)
@@ -1338,6 +1348,12 @@ std::vector<Action> Game::getAllLegalActions() const
   {
     allActions.push_back(Action(ST_event));
   }
+  else if (stage == ST_plan)
+  {
+    for (int idx = 0; idx < 12; idx++)
+      if (mj_isPlanCandidateLegal(idx))
+        allActions.push_back(Action(ST_plan, idx));
+  }
   else
     throw "未知stage";
   return allActions;
@@ -1369,6 +1385,10 @@ void Game::applyAction(std::mt19937_64& rand, Action action)
   else if (stage == ST_event)
   {
     checkEvent(rand);
+  }
+  else if (stage == ST_plan)
+  {
+    mj_addPlan(action.idx);
   }
   else
     throw "未知stage";
@@ -1444,6 +1464,10 @@ std::string Action::toString(const Game& game) const
   if (stage == ST_train)
   {
     return trainingName[idx];
+  }
+  else if (stage == ST_plan)
+  {
+    return "计划加入" + game.mj_planCandidate(idx).toString();
   }
   else if (stage == ST_decideEvent)
   {
