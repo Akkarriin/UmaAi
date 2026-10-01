@@ -1,5 +1,4 @@
-﻿#include <cstdlib>
-#include <cassert>
+﻿#include <cassert>
 #include <iostream>
 #include "Evaluator.h"
 #include "../Search/Search.h"
@@ -39,6 +38,11 @@ bool HandwrittenParams::loadJson(const std::string& path)
   for (int i = 0; i < NUM; i++)
     if (j.contains(names[i]))
       this->*members[i] = j[names[i]].get<double>();
+  for (int i = 0; i < 6; i++)
+  {
+    if (j.contains("mj_target"))mj_target[i] = j["mj_target"][i].get<int>();
+    if (j.contains("mj_priority"))mj_priority[i] = j["mj_priority"][i].get<int>();
+  }
   return true;
 }
 
@@ -47,6 +51,11 @@ void HandwrittenParams::saveJson(const std::string& path) const
   nlohmann::json j;
   for (int i = 0; i < NUM; i++)
     j[names[i]] = this->*members[i];
+  if (mj_target[0] >= 0)
+  {
+    j["mj_target"] = std::vector<int>(mj_target, mj_target + 6);
+    j["mj_priority"] = std::vector<int>(mj_priority, mj_priority + 6);
+  }
   std::ofstream f(path);
   f << j.dump(2) << std::endl;
 }
@@ -230,29 +239,33 @@ double getRestOutingEvaluation(const HandwrittenParams& P, const Game& game, Act
 static double planCandidateEvaluation(const HandwrittenParams& P, const Game& game, int idx)
 {
   MujintoFacility f = game.mj_planCandidate(idx);
-  if (f.type == MJ_house)
-    return f.level == 1 ? 1000 : f.level == 2 ? P.mj_planHouseLv2Value : P.mj_planHouseLv3Value;
-  double weight = P.mj_planBaseWeight;
-  for (int i = 0; i < 6; i++)
-  {
-    const Person& p = game.persons[i];
-    if (p.personType == PersonType_card && p.cardParam.cardType == f.type)
-      weight += P.mj_planCardWeight;
-  }
-  if (f.type == MJ_speed)
-    weight += P.mj_planSpeedExtra;
-  double value = weight * (1 + P.mj_planLevelFactor * f.level);
-  //测试用：环境变量 UMAAI_JK_MASK 按位强制Lv3以上选熟练（第0~4位对应速耐力根智），其余选本能
-  static int jkMask = getenv("UMAAI_JK_MASK") ? atoi(getenv("UMAAI_JK_MASK")) : -1;
-  if (jkMask >= 0 && f.level >= 3)
-  {
-    bool want = (jkMask >> f.type) & 1;
-    if (f.jukuren != want)return -1e8;
-    return value;
-  }
   if (f.jukuren)
-    value *= P.mj_planJukurenFactor;
-  return value;
+    return -1e8;//只走本能路线（攻略都选本能），除非没有别的可选
+  double value;
+  if (f.type == MJ_house)
+    value = f.level == 1 ? 1000 : f.level == 2 ? P.mj_planHouseLv2Value : P.mj_planHouseLv3Value;
+  else
+  {
+    double weight = P.mj_planBaseWeight;
+    for (int i = 0; i < 6; i++)
+    {
+      const Person& p = game.persons[i];
+      if (p.personType == PersonType_card && p.cardParam.cardType == f.type)
+        weight += P.mj_planCardWeight;
+    }
+    if (f.type == MJ_speed)
+      weight += P.mj_planSpeedExtra;
+    value = weight * (1 + P.mj_planLevelFactor * f.level);
+  }
+  if (P.mj_target[0] < 0)
+    return value;
+
+  //按目标布局：超出目标的只在没有别的可选时才建；剩余期数不够时必须现在升级的优先
+  if (f.level > P.mj_target[f.type])
+    return -1e6 + value;
+  int remainPhases = 5 - game.turn / 12;//包括这一期
+  bool forced = P.mj_target[f.type] - game.mj_facilityLevel[f.type] >= remainPhases;
+  return (forced ? 2e5 : 1e5) - 1000.0 * P.mj_priority[f.type];
 }
 
 Action Evaluator::handWrittenStrategy(const Game& game)

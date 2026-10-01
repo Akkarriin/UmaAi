@@ -44,6 +44,8 @@ int main()
 	main_testMujinto();
 #elif defined UMAAI_TUNEHW
 	main_tuneHandwritten();
+#elif defined UMAAI_SEARCHLAYOUT
+	main_searchLayout();
 #elif defined UMAAI_MAINAI
 	main_ai();
 #else

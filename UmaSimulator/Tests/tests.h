@@ -13,3 +13,4 @@ void main_testCuda();
 void main_testOnnx();
 void main_testMujinto();//无人岛剧本规则自检
 void main_tuneHandwritten();//手写策略自动调参
+void main_searchLayout();//无人岛建设布局搜索

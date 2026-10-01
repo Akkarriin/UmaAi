@@ -36,6 +36,10 @@ struct HandwrittenParams
   double mj_planCardWeight = 2;//卡组里每张该类型支援卡增加的权重
   double mj_planLevelFactor = 0.15;//等级越高越优先
 
+  //无人岛目标布局（不参与自动调参）：mj_target[0]>=0 时建设计划按目标等级走（速耐力根智海），-1 表示用上面的权重规则
+  int mj_target[6] = { -1,-1,-1,-1,-1,-1 };
+  int mj_priority[6] = { 0,1,2,3,4,5 };//同一期里不是非建不可的设施按这个顺序（越小越先）
+
   static const int NUM = 25;
   static const char* const names[NUM];
   static double HandwrittenParams::* const members[NUM];
