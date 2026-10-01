@@ -1,4 +1,4 @@
-#include <iostream>
+﻿#include <iostream>
 #include <cassert>
 #include <algorithm>
 #include "Game.h"
@@ -130,6 +130,17 @@ void Game::mj_init()
     mj_guestType[i] = 0;
   for (int i = 0; i < 5; i++)
     mj_trainPioneerPt[i] = 0;
+  for (int i = 0; i < 5; i++)
+    mj_islandHouse[i] = -1;
+  mj_islandHouseNum = 0;
+  for (int i = 0; i < 6; i++)
+  {
+    mj_islandValue[i] = 0;
+    mj_islandValueLower[i] = 0;
+  }
+  mj_islandPioneerPt = 0;
+  mj_islandFriendCount = 0;
+  mj_islandFriendPositions = 0;
 }
 
 int Game::mj_facilityIslandBonus(int status) const
@@ -359,6 +370,286 @@ void Game::mj_addDeyilvNextTurnAll(int value)
   for (int i = 0; i < 6; i++)
     if (persons[i].personType == PersonType_card)
       mj_deyilvBonusNext[i] += value;
+}
+
+//岛训练-------------------------------------------------------------------------------------
+
+//岛训练的基础值，速耐力根智pt
+static const int MJ_IslandBase[6] = { 8,6,4,4,10,7 };
+
+//站在某个设施（0~4）或者海之家（5）时，支援卡的友情/干劲/训练加成反映到各属性的倍率
+static const double MJ_IslandRate[6][6] =
+{
+  {0.6, 0,   0.4, 0,   0,   0.5},//速
+  {0,   0.5, 0,   0.3, 0,   0.7},//耐
+  {0,   0.3, 0.6, 0,   0,   0.7},//力
+  {0.3, 0,   0.3, 0.5, 0,   0.7},//根
+  {0.45,0,   0,   0,   1.0, 0.7},//智
+  {0.2, 0.15,0.2, 0.15,0.15,0.7},//海之家
+};
+
+//单个设施给岛训练的训练效果%：海之家对所有属性有效，其他设施对这个训练会提升的属性（包括pt）有效
+static int facilityIslandTrainingEffect(int type, int level, bool jukuren, int status)
+{
+  if (level <= 0)return 0;
+  if (type == MJ_house)
+    return level == 3 ? 15 : level == 2 ? 10 : 5;
+  if (status != 5 && !trainingRaisesStatus(type, status))
+    return 0;
+  if (level == 5)return jukuren ? 15 : 25;
+  if (level == 4)return jukuren ? 10 : 15;
+  if (level == 3)return jukuren ? 5 : 10;
+  if (level == 2)return 5;
+  return 0;
+}
+
+int Game::mj_islandTrainingEffect(int status) const
+{
+  int total = 0;
+  for (int f = 0; f < 6; f++)
+    total += facilityIslandTrainingEffect(f, mj_facilityLevel[f], mj_facilityJukuren[f], status);
+  return total;
+}
+
+bool Game::mj_isIslandTrainingAvailable() const
+{
+  return stage == ST_train && !isRacing && mj_ticket > 0 && !isCampTraining();
+}
+
+void Game::mj_calculateIslandTraining(std::mt19937_64* rand)
+{
+  if (!mj_isIslandTrainingAvailable() && rand != nullptr)
+  {
+    mj_islandHouseNum = 0;
+    for (int i = 0; i < 5; i++)
+      mj_islandHouse[i] = -1;
+    for (int i = 0; i < 6; i++)
+      mj_islandValue[i] = mj_islandValueLower[i] = 0;
+    mj_islandPioneerPt = 0;
+    return;
+  }
+
+  //每个人头的位置：0~4设施，5海之家，-1不参加
+  //所在设施已建成就留在原地，否则（包括没站位的）去海之家，最多5人，友人>支援卡>嘉宾
+  if (rand != nullptr)
+  {
+    bool atFacility[MAX_INFO_PERSON_NUM] = { false,false,false,false,false,false };
+    bool guestAtFacility[MJ_MAX_GUEST] = {};
+    for (int t = 0; t < 5; t++)
+    {
+      if (mj_facilityLevel[t] == 0)continue;
+      for (int h = 0; h < 5; h++)
+      {
+        int p = personDistribution[t][h];
+        if (p >= 0 && p < 6)atFacility[p] = true;
+        else if (p >= PS_guest0 && p < PS_guestEnd)guestAtFacility[p - PS_guest0] = true;
+      }
+    }
+    vector<int> friends, cards, guests;
+    for (int p = 0; p < 6; p++)
+    {
+      if (atFacility[p])continue;
+      if (persons[p].personType == PersonType_card)cards.push_back(p);
+      else if (persons[p].personType == PersonType_scenarioCard && turn >= 2)friends.push_back(p);
+    }
+    for (int g = 0; g < mj_guestNum; g++)
+      if (!guestAtFacility[g])guests.push_back(PS_guest0 + g);
+    std::shuffle(cards.begin(), cards.end(), *rand);
+    std::shuffle(guests.begin(), guests.end(), *rand);
+    mj_islandHouseNum = 0;
+    for (int i = 0; i < 5; i++)
+      mj_islandHouse[i] = -1;
+    if (mj_facilityLevel[MJ_house] > 0)
+    {
+      for (auto list : { &friends,&cards,&guests })
+        for (int p : *list)
+          if (mj_islandHouseNum < 5)
+            mj_islandHouse[mj_islandHouseNum++] = p;
+    }
+  }
+
+  //列出所有参加者及其位置
+  int memberId[30];
+  int memberPos[30];
+  int memberNum = 0;
+  for (int t = 0; t < 5; t++)
+  {
+    if (mj_facilityLevel[t] == 0)continue;
+    for (int h = 0; h < 5; h++)
+    {
+      int p = personDistribution[t][h];
+      if (p < 0)break;
+      if (p == PS_noncardYayoi || p == PS_noncardReporter)continue;
+      memberId[memberNum] = p;
+      memberPos[memberNum] = t;
+      memberNum++;
+    }
+  }
+  for (int i = 0; i < mj_islandHouseNum; i++)
+  {
+    memberId[memberNum] = mj_islandHouse[i];
+    memberPos[memberNum] = 5;
+    memberNum++;
+  }
+
+  int supportAtFacility = 0, guestAtFacilityNum = 0, supportAtHouse = 0;
+  int friendCount = 0;
+  bool friendPosition[5] = { false,false,false,false,false };
+  for (int m = 0; m < memberNum; m++)
+  {
+    int p = memberId[m];
+    bool isSupport = p < 6;
+    if (memberPos[m] == 5)
+    {
+      if (isSupport)supportAtHouse++;
+    }
+    else
+    {
+      if (isSupport)supportAtFacility++;
+      else guestAtFacilityNum++;
+      if (isSupport && isCardShining(p, memberPos[m]))
+      {
+        friendCount++;
+        friendPosition[memberPos[m]] = true;
+      }
+    }
+  }
+  int supportNum = supportAtFacility + supportAtHouse;
+  int friendPositionNum = 0;
+  for (int t = 0; t < 5; t++)
+    if (friendPosition[t])friendPositionNum++;
+  mj_islandFriendCount = friendCount;
+  mj_islandFriendPositions = friendPositionNum;
+
+  //各支援卡的效果
+  CardTrainingEffect effs[30];
+  for (int m = 0; m < memberNum; m++)
+  {
+    int p = memberId[m];
+    if (p >= 6)continue;
+    const Person& ps = persons[p];
+    int pos = memberPos[m];
+    int atTrain = pos < 5 ? pos : (ps.cardParam.cardType < 5 ? ps.cardParam.cardType : 0);
+    bool shining = pos < 5 && isCardShining(p, pos);
+    effs[m] = ps.cardParam.getCardEffect(*this, shining, atTrain, ps.friendship, ps.cardRecord, supportNum, friendCount);
+  }
+
+  double countMultiplier = 1 + 0.05 * supportAtFacility + 0.02 * guestAtFacilityNum + 0.01 * supportAtHouse;
+  double houseFriendMultiplier = (100 + friendCount * mj_trainingEffectByFriend()) / 100.0;
+  double motivationBase = 0.1 * (motivation - 3);
+
+  //多个设施同时友情时的训练效果（需要海之家）
+  int friendPositionBonus = 0;
+  if (mj_facilityLevel[MJ_house] > 0)
+    friendPositionBonus = friendPositionNum >= 5 ? 80 : friendPositionNum == 4 ? 70 : friendPositionNum == 3 ? 65 : friendPositionNum == 2 ? 25 : 0;
+
+  for (int s = 0; s < 6; s++)
+  {
+    double base = MJ_IslandBase[s] + mj_facilityIslandBonus(s);
+    double friendMul = 1.0;
+    double ganjing = 0;
+    double xunlian = 0;
+    for (int m = 0; m < memberNum; m++)
+    {
+      int p = memberId[m];
+      if (p >= 6)continue;
+      const CardTrainingEffect& eff = effs[m];
+      double rate = MJ_IslandRate[memberPos[m]][s];
+      base += int(eff.bonus[s]);
+      if (memberPos[m] < 5 && isCardShining(p, memberPos[m]))
+        friendMul *= (100 + int(eff.youQing * rate + 1e-6)) / 100.0;
+      ganjing += int(eff.ganJing * rate + 1e-6);
+      xunlian += int(eff.xunLian * rate + 1e-6);
+    }
+    double umaBonus = s < 5 ? 1 + 0.01 * fiveStatusBonus[s] : 1;
+    double raw = base * umaBonus * friendMul * (1 + motivationBase * (1 + 0.01 * ganjing)) * (1 + 0.01 * xunlian) * countMultiplier * houseFriendMultiplier;
+    int lower = int(raw + 0.0002);
+    if (lower > 100)lower = 100;
+    int upper = lower * (friendPositionBonus + mj_islandTrainingEffect(s)) / 100;
+    if (upper > 100)upper = 100;
+    mj_islandValueLower[s] = lower;
+    if (s < 5)
+    {
+      lower = calculateRealStatusGain(fiveStatus[s], lower);
+      upper = calculateRealStatusGain(fiveStatus[s] + lower, upper);
+    }
+    mj_islandValue[s] = lower + upper;
+  }
+
+  //发展pt：memo为 (60+配置人数×3)×(100+评价会加成+友情20)/100
+  if (mj_canGainPioneerPt())
+    mj_islandPioneerPt = (60 + memberNum * 3) * (100 + mj_bonusPioneerPt + (friendCount > 0 ? 20 : 0)) / 100;
+  else
+    mj_islandPioneerPt = 0;
+}
+
+void Game::mj_applyIslandTraining(std::mt19937_64& rand)
+{
+  assert(mj_isIslandTrainingAvailable());
+  stage = ST_event;
+  mj_ticket -= 1;
+
+  for (int i = 0; i < 5; i++)
+    addStatus(i, mj_islandValue[i]);
+  skillPt += mj_islandValue[5];
+
+  //全部支援卡羁绊：普通+10，友人+7
+  for (int p = 0; p < 6; p++)
+  {
+    if (persons[p].personType == PersonType_card)
+      addJiBan(p, 10, 0);
+    else if (persons[p].personType == PersonType_scenarioCard && turn >= 2)
+      addJiBan(p, 7, 0);
+  }
+
+  //参加者（设施+海之家）
+  vector<int> participants;
+  for (int t = 0; t < 5; t++)
+  {
+    if (mj_facilityLevel[t] == 0)continue;
+    for (int h = 0; h < 5; h++)
+    {
+      int p = personDistribution[t][h];
+      if (p < 0)break;
+      participants.push_back(p);
+    }
+  }
+  for (int i = 0; i < mj_islandHouseNum; i++)
+    participants.push_back(mj_islandHouse[i]);
+
+  vector<int> hintCards;
+  vector<int> trainedCards;
+  bool clickFriend = false;
+  for (int p : participants)
+  {
+    if (p >= 6)continue;
+    if (persons[p].personType == PersonType_card)
+    {
+      trainedCards.push_back(p);
+      if (persons[p].isHint)
+        hintCards.push_back(p);
+    }
+    else if (p == friend_personId)
+      clickFriend = true;
+  }
+  if (hintCards.size() > 0)
+  {
+    int hintCard = hintCards[rand() % hintCards.size()];
+    addJiBan(hintCard, 5, 1);
+    addHintWithoutJiban(rand, hintCard);
+  }
+
+  if (mj_canGainPioneerPt())
+    mj_addPioneerPt(mj_islandPioneerPt);
+
+  if (clickFriend && friend_type != 0)
+  {
+    if (friend_type == 1)//SSR固有，岛训练时对所有参加的卡有效
+      for (int p : trainedCards)
+        mj_deyilvBonusNext[p] += 60;
+    handleFriendClickEvent(rand, 0);
+  }
+  printEvents("岛训练");
 }
 
 //塔克布莱恩-----------------------------------------------------------------------------------

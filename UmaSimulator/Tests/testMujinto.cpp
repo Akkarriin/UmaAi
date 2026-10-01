@@ -218,6 +218,107 @@ namespace
     checkEq(g.mj_specialtyRateUp(0), 80, "平时 速Lv5本能 得意率");
   }
 
+  //把一张卡的训练加成全部清零，用来对照 memo 里“やる気トレ効果0”的例子
+  void zeroCardEffect(Game& g, int p)
+  {
+    SupportCard& c = g.persons[p].cardParam;
+    c.youQingBasic = c.ganJingBasic = c.xunLianBasic = 0;
+    for (int i = 0; i < 6; i++)
+      c.bonusBasic[i] = 0;
+    c.uniqueEffectType = 0;
+    c.uniqueEffectParam.clear();
+  }
+
+  void testIslandTraining(mt19937_64& rand)
+  {
+    Game g = newTestGame(rand, 302574);
+    g.turn = 20;
+    g.stage = ST_train;
+    g.isRacing = false;
+    g.isAiJiao = false;
+    g.motivation = 5;
+    g.mj_ticket = 1;
+    g.mj_bonusTrainingEffect = 0;
+    g.mj_bonusPioneerPt = 0;
+    for (int i = 0; i < 6; i++)
+      g.mj_facilityLevel[i] = 0;
+    for (int i = 0; i < 5; i++)
+      g.fiveStatusBonus[i] = 0;
+    for (int i = 0; i < 6; i++)
+      g.persons[i].friendship = 0;
+    g.mj_islandHouseNum = 0;
+
+    //memo：绝好调、没人参加，智+12（10×1.2）
+    clearDistribution(g);
+    g.mj_calculateIslandTraining(nullptr);
+    checkEq(g.mj_islandValueLower[4], 12, "岛训练 无人 智");
+    checkEq(g.mj_islandValueLower[0], 9, "岛训练 无人 速");
+    checkEq(g.mj_islandValue[4], 12, "岛训练 无设施 上层为0");
+
+    //memo：设施上的嘉宾每人+0.02，3人pt+8（7×1.2×1.06），4人pt+9（7×1.2×1.08）
+    g.mj_facilityLevel[MJ_speed] = 1;
+    for (int h = 0; h < 3; h++)
+      g.personDistribution[0][h] = PS_guest0 + h;
+    g.mj_calculateIslandTraining(nullptr);
+    checkEq(g.mj_islandValueLower[5], 8, "岛训练 3嘉宾 pt");
+    g.personDistribution[0][3] = PS_guest0 + 3;
+    g.mj_calculateIslandTraining(nullptr);
+    checkEq(g.mj_islandValueLower[5], 9, "岛训练 4嘉宾 pt");
+    checkEq(g.mj_islandPioneerPt, 60 + 4 * 3, "岛训练 4人 发展pt");
+
+    //设施没建时站在那里的人不参加
+    g.mj_facilityLevel[MJ_speed] = 0;
+    g.mj_calculateIslandTraining(nullptr);
+    checkEq(g.mj_islandValueLower[5], 8, "岛训练 未建设施的嘉宾不参加");
+
+    //memo：智设施Lv1、1张训练效果0的卡，智+13（11×1.2×1.05）；再加1个嘉宾+14（11×1.2×1.07）
+    clearDistribution(g);
+    g.mj_facilityLevel[MJ_wiz] = 1;
+    zeroCardEffect(g, 1);
+    g.personDistribution[4][0] = 1;
+    g.mj_calculateIslandTraining(nullptr);
+    checkEq(g.mj_islandValueLower[4], 13, "岛训练 智Lv1+1卡 智");
+    g.personDistribution[4][1] = PS_guest0;
+    g.mj_calculateIslandTraining(nullptr);
+    checkEq(g.mj_islandValueLower[4], 14, "岛训练 智Lv1+1卡+1嘉宾 智");
+
+    //海之家里的卡每人+0.01：智 11×1.2×1.08=14.256
+    zeroCardEffect(g, 2);
+    g.mj_facilityLevel[MJ_house] = 1;
+    g.mj_islandHouse[0] = 2;
+    g.mj_islandHouseNum = 1;
+    g.mj_calculateIslandTraining(nullptr);
+    checkEq(g.mj_islandValueLower[4], 14, "岛训练 +海之家1卡 智");
+    g.mj_islandHouseNum = 0;
+
+    //两个设施同时友情（要有海之家）：上层 = 下层×(25+海之家Lv1的5)%
+    clearDistribution(g);
+    g.mj_facilityLevel[MJ_speed] = 1;
+    zeroCardEffect(g, 3);
+    g.persons[1].friendship = 100;
+    g.persons[1].cardParam.cardType = 4;
+    g.persons[3].friendship = 100;
+    g.persons[3].cardParam.cardType = 0;
+    g.personDistribution[4][0] = 1;
+    g.personDistribution[0][0] = 3;
+    g.mj_calculateIslandTraining(nullptr);
+    checkEq(g.mj_islandFriendPositions, 2, "岛训练 友情设施数");
+    int lower = g.mj_islandValueLower[4];
+    checkEq(g.mj_islandValue[4], lower + lower * (25 + 5) / 100, "岛训练 2设施友情 上层+25%+海之家5%");
+    checkEq(g.mj_islandPioneerPt, (60 + 2 * 3) * 120 / 100, "岛训练 友情时发展pt+20%");
+
+    //执行：券-1，普通卡羁绊+10
+    int bond0 = g.persons[2].friendship;
+    int status0 = g.fiveStatus[4];
+    int value = g.mj_islandValue[4];
+    g.mj_applyIslandTraining(rand);
+    checkEq(g.mj_ticket, 0, "岛训练 消耗1张券");
+    checkEq(g.persons[2].friendship - bond0, 10, "岛训练 未参加的卡羁绊也+10");
+    check(g.fiveStatus[4] - status0 >= value, "岛训练 属性增加");
+    g.stage = ST_train;
+    check(!g.mj_isIslandTrainingAvailable(), "没券时不能岛训练");
+  }
+
   //跑一局，每回合打印剧本状态
   void runOneGame(mt19937_64& rand)
   {
@@ -225,9 +326,12 @@ namespace
     g.continueUntilNextDecision(rand);
     const int checkpoints[8] = { 2,12,24,36,40,48,60,78 };//这些回合结束后打印
     int nextCheckpoint = 0;
+    int islandCount = 0;
     while (!g.isEnd())
     {
       Action a = Evaluator::handWrittenStrategy(g);
+      if (a.stage == ST_train && a.idx == T_island)
+        { islandCount++; cout << "  岛训练@" << g.turn + 1 << ": "; for (int s = 0; s < 6; s++) cout << g.mj_islandValue[s] << " "; cout << "发展pt " << g.mj_islandPioneerPt << " 友情设施 " << g.mj_islandFriendPositions << endl; }
       g.applyActionUntilNextDecision(rand, a);
       while (nextCheckpoint < 8 && g.turn >= checkpoints[nextCheckpoint])
       {
@@ -244,7 +348,7 @@ namespace
     cout << "评价会结果：";
     for (int i = 1; i <= 5; i++)
       cout << (g.mj_evalResult[i] == 2 ? "大好评 " : "好评 ");
-    cout << "，友人出行 " << g.friend_outgoingNum << "/5，最终分 " << g.finalScore() << endl;
+    cout << "，友人出行 " << g.friend_outgoingNum << "/5，岛训练 " << islandCount << " 次，最终分 " << g.finalScore() << endl;
   }
 }
 
@@ -262,6 +366,7 @@ void main_testMujinto()
     testPioneerPt(rand);
     testBuildAndEvaluation(rand);
     testTrainingValue(rand);
+    testIslandTraining(rand);
     cout << "自检：" << checkCount - failCount << "/" << checkCount << " 通过" << endl;
     runOneGame(rand);
   }

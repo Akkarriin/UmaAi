@@ -101,6 +101,7 @@ enum TrainActionTypeEnum :int16_t
   T_rest,
   T_outgoing, //包括合宿的“休息&外出”
   T_race, //包括生涯比赛
+  T_island, //无人岛：岛训练（消耗岛训练券）
   T_none = -1, //此Action不训练，只做菜
   //TRA_redistributeCardsForTest = -2 //使用这个标记时，说明要randomDistributeCards，用于测试ai分数，在Search::searchSingleActionThread中使用
 };
@@ -108,12 +109,12 @@ enum TrainActionTypeEnum :int16_t
 
 struct Action
 {
-  static const std::string trainingName[8];
+  static const std::string trainingName[9];
   //static const Action Action_RedistributeCardsForTest;
-  static const int MAX_ACTION_TYPE = 8;
+  static const int MAX_ACTION_TYPE = 9;
   
   int16_t stage;//这个action是作用于哪个stage的，如果是ST_distribute、ST_event这些不需要做出任何选择的stage，则无视以下内容
-  int16_t idx;//stage=ST_train时为训练，01234速耐力根智，5休息，6外出，7比赛。stage=ST_decideEvent时是选第几个
+  int16_t idx;//stage=ST_train时为训练，01234速耐力根智，5休息，6外出，7比赛，8岛训练。stage=ST_decideEvent时是选第几个
   Action();//空Action
   Action(int st);//ST_distribute、ST_event这些不需要做出任何选择的stage
   Action(int st, int idx);//需要做选择的stage
@@ -214,6 +215,13 @@ struct Game
   int16_t trainHeadNum[5];//训练人头个数，不包括理事长记者
   int16_t trainShiningNum[5];//训练闪彩个数
   int16_t mj_trainPioneerPt[5];//训练成功能获得的发展pt
+  int16_t mj_islandHouse[5];//岛训练时被安排到海之家的人头（没站位或者所在设施未建），-1为空
+  int16_t mj_islandHouseNum;//海之家几个人
+  int16_t mj_islandValue[6];//岛训练的总数（下层+上层），速耐力根智pt
+  int16_t mj_islandValueLower[6];//岛训练的下层
+  int16_t mj_islandPioneerPt;//岛训练获得的发展pt
+  int16_t mj_islandFriendCount;//岛训练里友情训练的支援卡数
+  int16_t mj_islandFriendPositions;//岛训练里发生友情训练的设施数
 
 
   //训练数值计算的中间变量，存下来方便手写逻辑进行估计
@@ -348,6 +356,10 @@ public:
   void mj_makeDefaultPlan(int phase);//默认的建设计划（手写规则，第4步再做成可选择的阶段）
   void mj_addGuests(std::mt19937_64& rand, int totalCount);//PJ参加人数增加到totalCount（含自己的非友人卡）
   void mj_addDeyilvNextTurnAll(int value);//所有支援卡下回合得意率+value
+  bool mj_isIslandTrainingAvailable() const;//这回合能不能岛训练
+  int mj_islandTrainingEffect(int status) const;//设施给岛训练的训练效果%（上层）
+  void mj_calculateIslandTraining(std::mt19937_64* rand);//安排海之家并计算岛训练数值。rand为空时不重新安排海之家
+  void mj_applyIslandTraining(std::mt19937_64& rand);//进行岛训练
 
   //友人卡相关事件（塔克布莱恩）
   void handleFriendUnlock(std::mt19937_64& rand);//友人外出解锁

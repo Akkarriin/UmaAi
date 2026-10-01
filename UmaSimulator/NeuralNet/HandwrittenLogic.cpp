@@ -19,6 +19,7 @@ const double outgoingBonusIfNotFullMotivationEnd = 800;//掉心情时提高外�
 const double raceBonus = 0;//比赛收益，不考虑体力
 
 const double mj_pioneerPtValue = 2.0;//无人岛：大好评之前每点发展pt的估值（第4步再细调）
+const double mj_keepTicketValue = 1000;//无人岛：留着岛训练券以后用的估值
 
 //一个分段函数，用来控属性
 inline double statusSoftFunction(double x, double reserve, double reserveInvX2)//reserve是控属性保留空间（降低权重），reserveInvX2是1/(2*reserve)
@@ -28,50 +29,30 @@ inline double statusSoftFunction(double x, double reserve, double reserveInvX2)/
   return x + 0.5 * reserve;
 }
 
-static void statusGainEvaluation(const Game& g, double* result,int remainTrainingTurns) { //result依次是五种训练的估值
+//某次训练增加gain（速耐力根智pt）的估值，考虑控属性
+static double statusGainEvaluationSingle(const Game& g, const int16_t* gain, int remainTrainingTurns)
+{
   int remainTurn = remainTrainingTurns;//这次训练后还有几个训练回合
-  //ura期间的一个回合视为两个回合，因此不需要额外处理
-  //if (remainTurn == 2)remainTurn = 1;//ura第二回合
-  //else if (remainTurn >= 4)remainTurn -= 2;//ura第一回合
-
   double reserve = reserveStatusFactor * remainTurn * (1 - double(remainTurn) / (TOTAL_TURN * 2));
   double reserveInvX2 = 1 / (2 * reserve);
 
-  double finalBonus0 = 170;
-  //finalBonus0 += 30;//ura3和最终事件
-  //if (remainTurn >= 1)finalBonus0 += 20;//ura2
-  //if (remainTurn >= 2)finalBonus0 += 20;//ura1
+  double finalBonus0 = 170;//结算时还会加的属性
 
-  double remain[5]; //每种属性还有多少空间
-
-  for (int i = 0; i < 5; i++)
+  double res = 0;
+  for (int sta = 0; sta < 5; sta++)
   {
-    remain[i] = g.fiveStatusLimit[i] - g.fiveStatus[i] - finalBonus0;
+    double remain = g.fiveStatusLimit[sta] - g.fiveStatus[sta] - finalBonus0;
+    double s0 = statusSoftFunction(-remain, reserve, reserveInvX2);
+    double s1 = statusSoftFunction(gain[sta] - remain, reserve, reserveInvX2);
+    res += statusWeights[sta] * (s1 - s0);
   }
+  res += g.gameSettings.ptScoreRate * gain[5];
+  return res;
+}
 
-  //if (g.friend_type != 0)
-  //{
-  //  remain[0] -= 25;
-  //  remain[4] -= 25;
-  //}
-
-
+static void statusGainEvaluation(const Game& g, double* result, int remainTrainingTurns) { //result依次是五种训练的估值
   for (int tra = 0; tra < 5; tra++)
-  {
-    double res = 0;
-    for (int sta = 0; sta < 5; sta++)
-    {
-      double s0 = statusSoftFunction(-remain[sta], reserve, reserveInvX2);
-      double s1 = statusSoftFunction(g.trainValue[tra][sta] - remain[sta], reserve, reserveInvX2);
-      res += statusWeights[sta] * (s1 - s0);
-    }
-    res += g.gameSettings.ptScoreRate * g.trainValue[tra][5];
-    result[tra] = res;
-  }
-
-
-
-
+    result[tra] = statusGainEvaluationSingle(g, g.trainValue[tra], remainTrainingTurns);
 }
 
 //还有几个训练回合（不含当前回合）
@@ -119,6 +100,43 @@ static double pioneerPtEvaluation(const Game& game, int pioneerPt)
   if (need <= 0)
     return 0;
   return mj_pioneerPtValue * std::min(need, pioneerPt);
+}
+
+//留着岛训练券的估值：快拿到新券（会溢出）或者剩下能用的回合不多时就是0
+static double keepTicketEvaluation(const Game& game)
+{
+  int usableTurns = 0;//以后还能岛训练的回合数
+  for (int t = game.turn + 1; t < 72; t++)
+  {
+    bool camp = (t >= 36 && t <= 39) || (t >= 60 && t <= 63);
+    if (!camp && !game.isRacingTurn[t])
+      usableTurns++;
+  }
+  if (game.mj_ticket > usableTurns)
+    return 0;
+  if (game.turn < 60)
+  {
+    int next = game.mj_pioneerPt < game.mj_requiredPt1 ? game.mj_requiredPt1 :
+      game.mj_pioneerPt < game.mj_requiredPt2 ? game.mj_requiredPt2 : -1;
+    if (next >= 0 && next - game.mj_pioneerPt <= 150)
+      return 0;
+  }
+  return mj_keepTicketValue;
+}
+
+static double islandTrainingEvaluation(const Game& game, int remainTrainingTurns)
+{
+  double value = statusGainEvaluationSingle(game, game.mj_islandValue, remainTrainingTurns);
+  value += pioneerPtEvaluation(game, game.mj_islandPioneerPt);
+  //全部支援卡羁绊+10
+  for (int p = 0; p < 6; p++)
+  {
+    const Person& ps = game.persons[p];
+    if (ps.personType == PersonType_card && ps.friendship < 80)
+      value += std::min(10, 80 - ps.friendship) * jibanValue;
+  }
+  value -= keepTicketEvaluation(game);
+  return value;
 }
 
 double getRestOutingEvaluation(const Game& game, Action& bestAction, double vitalFactor, int maxVitalEquvalant, double vitalEvalBeforeTrain, int remainTrainingTurns)
@@ -244,6 +262,19 @@ Action Evaluator::handWrittenStrategy(const Game& game)
       {
         bestValue = value;
         bestAction.idx = T_race;
+      }
+    }
+
+    //岛训练（不耗体力，不会失败）
+    if (game.mj_isIslandTrainingAvailable())
+    {
+      double value = islandTrainingEvaluation(game, remainTrainingTurns);
+      if (PrintHandwrittenLogicValueForDebug)
+        std::cout << "岛训练 " << value << std::endl;
+      if (value > bestValue)
+      {
+        bestValue = value;
+        bestAction.idx = T_island;
       }
     }
 

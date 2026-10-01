@@ -139,6 +139,10 @@ bool Game::loadGameFromJson(std::string jsonStr)
         mj_deyilvBonus[i] = j["mj_deyilvBonus"][i];
 
     calculateTrainingValue();
+    {
+      std::mt19937_64 houseRand(114514);
+      mj_calculateIslandTraining(&houseRand);
+    }
   //for (int k = 1; k < 5; k++) {
    //     cout << trainValue[1][k] << endl;
    // }

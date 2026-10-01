@@ -459,7 +459,19 @@ void Game::print() const
   }
   cout << divLineWhite;
 
-  cout << divLineWhite;
+  //岛训练
+  if (mj_isIslandTrainingAvailable())
+  {
+    static const string names[6] = { "速","耐","力","根","智","pt" };
+    cout << "\033[1;36m岛训练\033[0m（券" << mj_ticket << "）：";
+    for (int i = 0; i < 6; i++)
+      cout << names[i] << " " << mj_islandValueLower[i] << "+" << mj_islandValue[i] - mj_islandValueLower[i] << "  ";
+    cout << "发展pt+" << mj_islandPioneerPt << "  友情设施" << mj_islandFriendPositions << "处" << endl;
+    cout << "海之家：";
+    for (int i = 0; i < mj_islandHouseNum; i++)
+      cout << getPersonStrColored(mj_islandHouse[i], 5) << " ";
+    cout << endl;
+  }
 
   cout << "\033[31m-------------------------------------------------------------------------------------------\033[0m" << endl;
   

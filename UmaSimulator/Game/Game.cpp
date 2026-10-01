@@ -6,7 +6,7 @@ using namespace std;
 
 //剧本无关的通用流程。无人岛剧本的规则在Mujinto.cpp
 
-const std::string Action::trainingName[8] =
+const std::string Action::trainingName[9] =
 {
   "速",
   "耐",
@@ -15,7 +15,8 @@ const std::string Action::trainingName[8] =
   "智",
   "休息",
   "外出",
-  "比赛"
+  "比赛",
+  "岛训练"
 };
 
 static bool randBool(mt19937_64& rand, double p)
@@ -163,10 +164,26 @@ void Game::randomizeTurn(std::mt19937_64& rand)
         }
       }
     }
+    //没站位的卡在岛训练时可能去海之家，也可能有hint
+    if (mj_ticket > 0)
+    {
+      for (int pid = 0; pid < 6; pid++)
+      {
+        if (persons[pid].personType != PersonType_card)continue;
+        bool placed = false;
+        for (int t = 0; t < 5; t++)
+          for (int h = 0; h < 5; h++)
+            if (personDistribution[t][h] == pid)placed = true;
+        if (placed)continue;
+        double hintProb = 0.075 * (1 + 0.01 * persons[pid].cardParam.hintProbIncrease) * (1 + 0.01 * mj_hintRateUp(persons[pid].cardParam.cardType));
+        persons[pid].isHint = randBool(rand, hintProb);
+      }
+    }
   }
 
   calculateTrainingValue();
   stage = ST_train;
+  mj_calculateIslandTraining(&rand);
 }
 
 void Game::undoRandomize()
@@ -488,6 +505,12 @@ bool Game::applyTraining(std::mt19937_64& rand, int16_t train)
   {
     handleOutgoing(rand);
   }
+  else if (train == T_island)//岛训练
+  {
+    if (!mj_isIslandTrainingAvailable())
+      return false;
+    mj_applyIslandTraining(rand);
+  }
   else if (train <= 4 && train >= 0)//常规训练
   {
     bool trainingSucceed = !(rand() % 100 < failRate[train]);
@@ -730,6 +753,10 @@ bool Game::isLegal(Action action) const
   else if (action.idx >= 0 && action.idx <= 4)
   {
     return true;
+  }
+  else if (action.idx == T_island)
+  {
+    return mj_isIslandTrainingAvailable();
   }
   return false;
 }
@@ -1291,6 +1318,8 @@ std::vector<Action> Game::getAllLegalActions() const
     allActions.push_back(Action(ST_train, T_outgoing));
     if (isRaceAvailable())
       allActions.push_back(Action(ST_train, T_race));
+    if (mj_isIslandTrainingAvailable())
+      allActions.push_back(Action(ST_train, T_island));
   }
   else if (stage == ST_decideEvent)
   {
