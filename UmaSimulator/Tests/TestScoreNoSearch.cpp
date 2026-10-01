@@ -16,6 +16,7 @@
 #include "../GameDatabase/GameConfig.h"
 #include "../Tests/TestConfig.h"
 
+#include "../External/utils.h"
 using namespace std;
 
 void main_testScoreNoSearch()
@@ -136,5 +137,5 @@ void main_testScoreNoSearch()
   // 输出持续时间
   std::cout << "用时: " << duration_s << " s, 每秒 " << test.totalGames / duration_s << " 局" << std::endl;
 
-  system("pause");
+  pauseConsole();
 }

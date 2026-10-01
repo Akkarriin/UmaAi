@@ -1,6 +1,6 @@
 {
-  "radicalFactor": 3, // 激进度，默认为3，提高会导致计算变慢
-  "searchSingleMax": 4096, // 第一选项达到多少次搜索就停止蒙特卡洛
-  "threadNum": 8, // 线程数，可根据自身CPU调整，神经网络版直接设成4
-  "useWebsocket": true // 是否使用websocket与小黑板通信，否则使用文件通信
+  "radicalFactor": 3, // 婵�杩涘害锛岄粯璁や负3锛屾彁楂樹細瀵艰嚧璁＄畻鍙樻參
+  "searchSingleMax": 4096, // 绗竴閫夐」杈惧埌澶氬皯娆℃悳绱㈠氨鍋滄钂欑壒鍗℃礇
+  "threadNum": 8, // 绾跨▼鏁帮紝鍙牴鎹嚜韬獵PU璋冩暣锛岀缁忕綉缁滅増鐩存帴璁炬垚4
+  "communicationMode": "localfile" // 鐘舵�佹潵婧愶細localfile璇诲彇绋嬪簭鐩綍鐨則hisTurn.json锛寀rafile璇诲彇URA鏁版嵁鐩綍锛寃ebsocket涓庡皬榛戞澘閫氫俊
 }

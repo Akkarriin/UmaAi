@@ -16,6 +16,7 @@
 #include "../GameDatabase/GameConfig.h"
 #include "../Tests/TestConfig.h"
 
+#include "../External/utils.h"
 using namespace std;
 
 namespace TestScoreSearch
@@ -218,6 +219,6 @@ void main_testScoreSearch()
   }
 
   cout << n << "局，搜索量=" << searchN << "，平均分" << totalScore / n << "，标准差" << sqrt(totalScoreSqr / n - totalScore * totalScore / n / n) << "，最高分" << bestScore << endl;
-  system("pause");
+  pauseConsole();
 
 }

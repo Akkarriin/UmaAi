@@ -35,4 +35,6 @@ std::string UTF8_To_string(const std::string& str);
 // 计算UTF8字符(Rune)数
 int UTF8_rune_count(const std::string& utf8String);
 std::string UTF8_rune_cut(const std::string& utf8String, int n);
+// 跨平台的“按任意键继续”
+void pauseConsole();
 #endif

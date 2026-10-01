@@ -9,7 +9,9 @@
 #include "../Game/Game.h"
 #include "../GameDatabase/GameConfig.h"
 #include "../Search/Search.h"
+#ifdef _WIN32
 #include "windows.h"
+#endif
 #include <filesystem>
 #include <cstdlib>
 using namespace std;

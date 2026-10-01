@@ -13,7 +13,9 @@
 #include "../External/utils.h"
 #include "tests.h"
 
+#ifdef _WIN32
 #include "windows.h"
+#endif
 #include <filesystem>
 #include <cstdlib>
 using namespace std;

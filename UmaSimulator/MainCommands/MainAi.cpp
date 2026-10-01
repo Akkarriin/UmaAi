@@ -11,9 +11,13 @@
 #include "../GameDatabase/GameConfig.h"
 #include "../Search/Search.h"
 #include "../External/utils.h"
+#ifndef UMAAI_NO_WEBSOCKET
 #include "../websocket.h"
+#endif
 
+#ifdef _WIN32
 #include "windows.h"
+#endif
 #include <filesystem>
 #include <cstdlib>
 using namespace std;
@@ -102,9 +106,15 @@ void main_ai()
 
 		bool refreshIfAnyChanged = true;//if false, only new turns will refresh
 		//bool refreshIfAnyChanged = GameConfig::communicationMode == "localfile";//if false, only new turns will refresh
-		string currentGameStagePath = uraFileMode ?
-			string(getenv("LOCALAPPDATA")) + "/UmamusumeResponseAnalyzer/GameData/thisTurn.json"
-			: "./thisTurn.json";
+		string currentGameStagePath = "./thisTurn.json";
+		if (uraFileMode)
+		{
+			//Linux下没有LOCALAPPDATA，例如在wine中运行URA时，可以手动设置该环境变量指向对应目录
+			const char* localAppData = getenv("LOCALAPPDATA");
+			if (localAppData == nullptr)
+				throw runtime_error("urafile模式需要设置环境变量LOCALAPPDATA（URA数据目录的上级目录）");
+			currentGameStagePath = string(localAppData) + "/UmamusumeResponseAnalyzer/GameData/thisTurn.json";
+		}
 		//string currentGameStagePath2 = 
 		//	string(getenv("LOCALAPPDATA")) + "/UmamusumeResponseAnalyzer/GameData/turn34.json"
 		//	
@@ -142,16 +152,24 @@ void main_ai()
 
 		bool useWebsocket = GameConfig::communicationMode == "websocket";
 		bool isLinkError = false;
+#ifdef UMAAI_NO_WEBSOCKET
+		if (useWebsocket)
+			throw runtime_error("此版本编译时未启用websocket（需要asio），请把communicationMode改为localfile或urafile");
+		string lastFromWs;
+#else
 		websocket ws(useWebsocket ? "http://127.0.0.1:4693" : "");
+#endif
 		if (useWebsocket)
 		{
+#ifndef UMAAI_NO_WEBSOCKET
 			do {
-				Sleep(500);
+				std::this_thread::sleep_for(std::chrono::milliseconds(500));
 				if (!isLinkError) {
 					std::cout << "\x1b[93m等待URA连接\x1b[0m" << std::endl;
 					isLinkError = true;
 				}
 			} while (ws.get_status() != "Open");
+#endif
 			isLinkError = false;
 		}
 
@@ -614,12 +632,12 @@ void main_ai()
 			catch (exception& e) {
 				cout << "\x1b[91m发生错误: " << endl << e.what() << endl;
 				cout << "\x1b[91m** 程序即将退出**\x1b[0m" << endl;
-				system("pause");
+				pauseConsole();
 			}
 			catch (...) {
 				cout << "\x1b[91m发生未知错误，请重启AI" << endl;
 				cout << "\x1b[91m** 程序即将退出**\x1b[0m" << endl;
-				system("pause");
+				pauseConsole();
 			}
 
 		}
@@ -627,11 +645,11 @@ void main_ai()
 	catch (exception& e) {
 		cout << "\x1b[91mAI初始化时发生错误: " << endl << e.what() << endl;
 		cout << "\x1b[91m** 程序即将退出**\x1b[0m" << endl;
-		system("pause");
+		pauseConsole();
 	}
 	catch (...) {
 		cout << "\x1b[91mAI初始化时发生未知错误，请检查配置" << endl;
 		cout << "\x1b[91m** 程序即将退出**\x1b[0m" << endl;
-		system("pause");
+		pauseConsole();
 	}
 }

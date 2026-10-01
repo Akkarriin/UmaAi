@@ -1,5 +1,7 @@
 #pragma once
 
+//编译时通过 -DUMAAI_MODE_SET_BY_BUILD 加 -DUMAAI_xxx 指定模式（见CMakeLists.txt），否则使用这里的设置
+#ifndef UMAAI_MODE_SET_BY_BUILD
 #define UMAAI_MAINAI   //使用ai
 //#define UMAAI_TESTSCORE   //测试ai分数
 //#define UMAAI_TESTCARDSSINGLE   //测卡，控制五张卡不变只改变一张
@@ -9,6 +11,7 @@
 //#define UMAAI_MODELBENCHMARK   //测试神经网络速度
 //#define UMAAI_TESTSCORESEARCH //测试蒙特卡洛强度
 //#define UMAAI_TESTSCORENOSEARCH //测试神经网络/手写逻辑policy强度
+#endif
 
 //#define PRINT_GAME_EVENT
 #if defined UMAAI_TESTSCORE || defined UMAAI_SIMULATOR 

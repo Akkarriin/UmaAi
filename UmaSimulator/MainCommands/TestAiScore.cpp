@@ -19,6 +19,7 @@
 #include "../Tests/TestConfig.h"
 #include "../NeuralNet/Evaluator.h"
 
+#include "../External/utils.h"
 using namespace std;
 
 // 仅测试手动分数，不进行NN测试
@@ -71,7 +72,7 @@ namespace TestAiScore
   std::atomic<int> bestScore = 0;
   std::atomic<int> n = 0;
   std::mutex printLock;
-  vector<atomic<int>> segmentStats = vector<atomic<int>>(500);//100分一段，500段
+  vector<atomic<int>> segmentStats = vector<atomic<int>>(700);//100分一段，700段
   map<int, GameResult> segmentSample;
 
   Model* getModel()
@@ -167,7 +168,7 @@ namespace TestAiScore
       n += 1;
       printProgress(n, totalGames, 70);
       totalScore += score;
-      totalScoreSqr += score * score;
+      totalScoreSqr += double(score) * score;//int相乘超过46340分会溢出
       for (int i = 0; i < 700; i++)
       {
         int refScore = i * 100;
@@ -175,8 +176,12 @@ namespace TestAiScore
         {
           segmentStats[i] += 1;
         }
-        if (score >= refScore && score < refScore + 100 && segmentSample.count(refScore) == 0)
-          segmentSample[i] = result;    // 每隔100分记录一局属性
+        if (score >= refScore && score < refScore + 100)
+        {
+          std::lock_guard<std::mutex> lock(printLock);//多线程写map需要加锁
+          if (segmentSample.count(i) == 0)
+            segmentSample[i] = result;    // 每隔100分记录一局属性
+        }
       }
       int bestScoreOld = bestScore;
       while (score > bestScoreOld && !bestScore.compare_exchange_weak(bestScoreOld, score)) {
@@ -213,7 +218,7 @@ namespace TestAiScore
                 int score = result.finalScore;
                 n += 1;
                 totalScore += score;
-                totalScoreSqr += score * score;
+                totalScoreSqr += double(score) * score;//int相乘超过46340分会溢出
                 for (int i = 0; i < 700; i++)
                 {
                     int refScore = i * 100;
@@ -221,8 +226,12 @@ namespace TestAiScore
                     {
                         segmentStats[i] += 1;
                     }
-                    if (score >= refScore && score < refScore + 100 && segmentSample.count(refScore) == 0)
-                        segmentSample[i] = result;    // 每隔100分记录一局属性
+                    if (score >= refScore && score < refScore + 100)
+                    {
+                        std::lock_guard<std::mutex> lock(printLock);
+                        if (segmentSample.count(i) == 0)
+                            segmentSample[i] = result;    // 每隔100分记录一局属性
+                    }
                 }
                 int bestScoreOld = bestScore;
                 while (score > bestScoreOld && !bestScore.compare_exchange_weak(bestScoreOld, score));
@@ -254,7 +263,7 @@ void main_testAiScore()
   */
   cout << test.explain() << endl;
   cout << "正在测试……\033[?25l" << endl;
-  for (int i = 0; i < 200; i++)segmentStats[i] = 0;
+  for (int i = 0; i < 700; i++)segmentStats[i] = 0;
   std::vector<std::thread> threads;
   totalGames = test.totalGames;
 
@@ -284,5 +293,5 @@ void main_testAiScore()
           cout << termcolor::bright_cyan << rankNames[j] << "概率: " << float(segmentStats[ranks[j]]) / n * 100 << "%"
               << termcolor::reset << " | 参考属性: " << segmentSample[ranks[j] + k].explain() << endl;
       }
-  system("pause");
+  pauseConsole();
 }

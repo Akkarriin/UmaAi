@@ -1,9 +1,14 @@
 ﻿#include "utils.h"
+#ifdef _WIN32
 #include "windows.h"
+#endif
+#include <cstdlib>
+#include <iostream>
 using json = nlohmann::json;
 using namespace std;
 
 // https://www.codersrc.com/archives/15399.html
+#ifdef _WIN32
 std::string string_To_UTF8(const std::string& str)
 {
     int nwLen = ::MultiByteToWideChar(CP_ACP, 0, str.c_str(), -1, NULL, 0);
@@ -59,6 +64,12 @@ std::string UTF8_To_string(const std::string& str)
 }
 
 // 计算UTF8字符(Rune)数
+#else
+// Linux下控制台与文件均为UTF-8，无需转码
+std::string string_To_UTF8(const std::string& str) { return str; }
+std::string UTF8_To_string(const std::string& str) { return str; }
+#endif
+
 int UTF8_rune_count(const std::string& utf8String)
 {
     int runeCount = 0;
@@ -95,4 +106,14 @@ std::string UTF8_rune_cut(const std::string& utf8String, int n)
         ++i;
     }
     return utf8String.substr(0, i);
+}
+
+void pauseConsole()
+{
+#ifdef _WIN32
+  system("pause");
+#else
+  std::cout << "按回车键继续..." << std::endl;
+  std::cin.get();
+#endif
 }

@@ -5,16 +5,20 @@
 #include "config.h"
 #include "Tests/tests.h"
 #include "MainCommands/MainCommands.h"
-#include "websocket.h"
 #include "Search/Search.h"
+#ifdef _WIN32
+#include <windows.h>
+#endif
 
 int main()
 {
+#ifdef _WIN32
 	system("chcp 65001");
 	LANGID lang = GetSystemDefaultLangID();
 	std::cout << "Language ID: " << lang << std::endl;
 	// 可以增加作者信息
 	SetWindowTextW(GetConsoleWindow(), TEXT("UmaAI 传奇杯 | 蒙特卡洛 | 0.1.1-utf8 | Build 250317"));
+#endif
 
 	SearchResult::initNormDistributionCdfTable();
 	//main_testOnnx();
