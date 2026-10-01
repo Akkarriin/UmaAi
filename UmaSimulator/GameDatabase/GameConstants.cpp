@@ -6,7 +6,7 @@ const double GameConstants::ScorePtRateDefault = 2.0;
 const double GameConstants::HintLevelPtRateDefault = 6.5;//以前默认5，种菜杯的hint经常稀缺，就调大一点
 const double GameConstants::HintProbTimeConstantDefault = 80;
 //const double GameConstants::ScorePtRateQieZhe = 2.2;
-const int GameConstants::BasicFiveStatusLimit[5] = { 2500,2000,2000,1800,1700 }; //游戏里原来是1850 1600 1600 1500 1450，模拟器中1200以上翻倍
+const int GameConstants::BasicFiveStatusLimit[5] = { 2500,2200,2200,2000,1500 }; //无人岛游戏里是1850 1700 1700 1600 1350，模拟器中1200以上翻倍
 
 //const int GameConstants::NormalRaceFiveStatusBonus = 3;//常规比赛属性加成=3
 //const int GameConstants::NormalRacePtBonus = 45;//常规比赛pt加成,G1=45
@@ -16,19 +16,45 @@ const int GameConstants::EventStrengthDefault = 30;
 const double GameConstants::FriendUnlockOutgoingProbEveryTurnLowFriendship = 0.07;
 const double GameConstants::FriendUnlockOutgoingProbEveryTurnHighFriendship = 0.07;
 
-const double GameConstants::FriendVitalBonusSSR[5] = { 1.2,1.23,1.26,1.3,1.3 };//友人SSR卡的回复量倍数（满破1.8）
-const double GameConstants::FriendVitalBonusR[5] = { 1,1,1,1,1 };//友人R卡的回复量倍数
-const double GameConstants::FriendStatusBonusSSR[5] = { 1.15,1.16,1.18,1.2,1.2 };//友人SSR卡的事件效果倍数（满破1.25）
-const double GameConstants::FriendStatusBonusR[5] = { 1,1,1,1,1 };//友人R卡的事件效果倍数
+const double GameConstants::FriendClickEventProb = 0.4;
+const double GameConstants::FriendClickEventGreatProb = 0.5;
 
-const double GameConstants::FriendQingreStopProb[10]={ 0, 0, 0.3, 0.3, 0.3, 1.0, 1.0, 1.0, 1.0, 1.0};//团卡已经情热x回合后，本回合有多大概率终止
+const std::vector<int> GameConstants::LinkCharas = { 1021, 1027, 1031, 1040, 1069 };//玉藻十字 目白赖恩 爱丽丝风神 黄金城市 樱花千代王（塔克布莱恩不可育成）
 
-const std::vector<int> GameConstants::LinkCharas = { 9046 };
 
-const double GameConstants::LG_redLvXunlianCard[10] = { 0,2,3,5,6,7,8,10,10,10 };//红登不同等级的卡的训练加成
-const double GameConstants::LG_redLvXunlianNPC[10] = {0,10,12,14,16,18,20,22,24,25 };//红登不同等级的npc的训练加成
-const double GameConstants::LG_redLvYouqingNPC[10] = { 0,15,16,17,18,19,20,20,20,20 };//红登不同等级的npc的友情加成
-
+const int GameConstants::MJ_CampTrainingValue[2][5][7] =
+{
+  {//未建设施
+    { 14, 0, 1, 0, 0, 8, -15},
+    { 0, 14, 0, 5, 0, 16, -15},
+    { 0, 5, 14, 0, 0, 16, -15},
+    { 5, 0, 4, 14, 0, 16, -15},
+    { 7, 0, 0, 0, 12, 16, 5},
+  },
+  {//已建设施：0的位置速为1，其他为2
+    { 14, 1, 1, 1, 1, 8, -15},
+    { 2, 14, 2, 5, 2, 16, -15},
+    { 2, 5, 14, 2, 2, 16, -15},
+    { 5, 2, 4, 14, 2, 16, -15},
+    { 7, 2, 2, 2, 12, 16, 5},
+  },
+};
+const int GameConstants::MJ_FacilitySpace[3][6] =
+{
+  {3,3,4,4,6,0},//没带塔克布莱恩
+  {3,4,5,5,7,0},//塔克布莱恩Lv40以下
+  {4,5,6,6,8,0},//塔克布莱恩Lv41以上
+};
+const int GameConstants::MJ_EvalStatus[2][6] = { {0,5,10,15,20,25},{0,10,15,20,25,35} };
+const int GameConstants::MJ_EvalPt[2][6] = { {0,30,60,75,100,150},{0,60,120,150,200,300} };
+const int GameConstants::MJ_EvalHpDivider[6] = { 1,10,10,10,10,8 };
+const int GameConstants::MJ_EvalHpMax[6] = { 0,20,20,25,25,30 };
+const int GameConstants::MJ_EvalBonus[2][6][3] =
+{
+  {{0,0,0},{5,15,3},{10,25,5},{20,45,5},{30,60,10},{45,80,0}},
+  {{0,0,0},{10,20,5},{20,40,10},{30,60,10},{45,80,15},{60,120,0}},
+};
+const int GameConstants::MJ_GuestTotal[6] = { 10,0,13,0,16,0 };
 
 const int GameConstants::FailRateBasic[5][5] =
 {
@@ -55,45 +81,44 @@ const int GameConstants::TrainingBasicValue[5][5][7] =
 {
   //速
   {
-    { 11, 0, 2, 0, 0, 7, -20},
-    { 12, 0, 2, 0, 0, 7, -21},
-    { 13, 0, 2, 0, 0, 7, -22},
-    { 14, 0, 3, 0, 0, 7, -24},
-    { 15, 0, 4, 0, 0, 7, -26},
+    { 12, 0, 1, 0, 0, 6, -20},
+    { 13, 0, 1, 0, 0, 6, -21},
+    { 14, 0, 1, 0, 0, 6, -22},
+    { 15, 0, 2, 0, 0, 6, -24},
+    { 16, 0, 3, 0, 0, 6, -15},
   },
   //耐
   {
-    { 0, 8, 0, 6, 0, 7, -21},
-    { 0, 9, 0, 6, 0, 7, -22},
-    { 0, 10, 0, 6, 0, 7, -23},
-    { 0, 11, 0, 7, 0, 7, -25},
-    { 0, 12, 0, 8, 0, 7, -27},
+    { 0, 9, 0, 5, 0, 6, -20},
+    { 0, 10, 0, 5, 0, 6, -21},
+    { 0, 11, 0, 5, 0, 6, -22},
+    { 0, 12, 0, 6, 0, 6, -24},
+    { 0, 14, 0, 5, 0, 6, -15},
   },
   //力
   {
-    { 0, 4, 10, 0, 0, 7, -21},
-    { 0, 4, 11, 0, 0, 7, -22},
-    { 0, 4, 12, 0, 0, 7, -23},
-    { 0, 5, 13, 0, 0, 7, -25},
-    { 0, 6, 14, 0, 0, 7, -27},
+    { 0, 3, 11, 0, 0, 6, -20},
+    { 0, 3, 12, 0, 0, 6, -21},
+    { 0, 3, 13, 0, 0, 6, -22},
+    { 0, 4, 14, 0, 0, 6, -24},
+    { 0, 5, 15, 0, 0, 6, -15},
   },
   //根
   {
-    { 2, 0, 2, 10, 0, 7, -21},
-    { 2, 0, 2, 11, 0, 7, -22},
-    { 2, 0, 2, 12, 0, 7, -23},
-    { 3, 0, 2, 13, 0, 7, -25},
-    { 3, 0, 3, 14, 0, 7, -27},
+    { 2, 0, 2, 10, 0, 6, -20},
+    { 2, 0, 2, 11, 0, 6, -21},
+    { 2, 0, 2, 12, 0, 6, -22},
+    { 3, 0, 2, 13, 0, 6, -24},
+    { 5, 0, 4, 14, 0, 6, -15},
   },
   //智
   {
-    { 3, 0, 0, 0, 7, 5, 5},
-    { 3, 0, 0, 0, 8, 5, 5},
-    { 3, 0, 0, 0, 9, 5, 5},
-    { 4, 0, 0, 0, 10, 5, 5},
-    { 5, 0, 0, 0, 11, 5, 5},
+    { 5, 0, 0, 0, 8, 6, 5},
+    { 5, 0, 0, 0, 9, 6, 5},
+    { 5, 0, 0, 0, 10, 6, 5},
+    { 6, 0, 0, 0, 11, 6, 5},
+    { 6, 0, 0, 0, 12, 6, 5},
   },
-  
 };
 
 const int GameConstants::FiveStatusFinalScore[2801] = {

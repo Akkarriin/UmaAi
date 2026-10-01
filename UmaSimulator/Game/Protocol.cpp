@@ -80,10 +80,7 @@ bool Game::loadGameFromJson(std::string jsonStr)
         else if (pid == 103) {
           personDistribution[i][p] = PS_noncardReporter;
         }
-        //else if (pid >= 1000) {
-        //  personDistribution[i][p] = PS_npc;
-        //}
-        else if (pid >= 0 && pid < 16)
+        else if ((pid >= 0 && pid < 6) || (pid >= PS_guest0 && pid < PS_guestEnd))
         {
           personDistribution[i][p] = pid;
         }
@@ -101,59 +98,46 @@ bool Game::loadGameFromJson(std::string jsonStr)
 
 
     if (friend_type != 0) {
-      for (int i = 0; i < 5; i++) {
-        friend_outgoingUsed[i] = j["friend_outgoingUsed"][i];
-      }
+      friend_outgoingNum = j.value("friend_outgoingNum", 0);
       friend_stage = j["friend_stage"];
     }
-    if (stage == ST_decideEvent && decidingEvent == DecidingEvent_three && friend_stage == FriendStage_notClicked)
+
+    //无人岛剧本状态。json格式在第5步（Protocol）再最终确定，这里先读能读到的字段
+    if (j.contains("mj_facilityLevel"))
     {
-      cout << "警告：读取json时，有三选一事件但未记录第一次点击，可能小黑板是半途开启的" << endl;
-      friend_stage = FriendStage_beforeUnlockOutgoing;
+      for (int i = 0; i < 6; i++)
+      {
+        mj_facilityLevel[i] = j["mj_facilityLevel"][i];
+        mj_facilityJukuren[i] = j["mj_facilityJukuren"][i];
+      }
     }
-    friend_qingre = j["friend_qingre"];
-    friend_qingreTurn = j["friend_qingreTurn"];
-
-    lg_mainColor = j["lg_mainColor"];
-    //if(lg_mainColor!=-1 && lg_mainColor != L_red && lg_mainColor != L_blue)
-    //  throw "当前版本暂不支持绿登，请等待新版本";
-    for (int i = 0; i < 3; i++) {
-      lg_gauge[i] = j["lg_gauge"][i];
+    if (j.contains("mj_plan"))
+    {
+      mj_planNum = 0;
+      for (auto& f : j["mj_plan"])
+        mj_plan[mj_planNum++] = MujintoFacility(f["type"], f["level"], f.value("jukuren", false));
     }
-    for (int i = 0; i < 8; i++) {
-      lg_trainingColor[i] = j["lg_trainingColor"][i];
+    mj_pioneerPt = j.value("mj_pioneerPt", 0);
+    mj_requiredPt1 = j.value("mj_requiredPt1", 0);
+    mj_requiredPt2 = j.value("mj_requiredPt2", 0);
+    mj_ticket = j.value("mj_ticket", 0);
+    mj_bonusTrainingEffect = j.value("mj_bonusTrainingEffect", 0);
+    mj_bonusHint = j.value("mj_bonusHint", 0);
+    mj_bonusPioneerPt = j.value("mj_bonusPioneerPt", 0);
+    if (j.contains("mj_evalResult"))
+      for (int i = 0; i < 6; i++)
+        mj_evalResult[i] = j["mj_evalResult"][i];
+    if (j.contains("mj_guestType"))
+    {
+      mj_guestNum = 0;
+      for (auto& t : j["mj_guestType"])
+        if (mj_guestNum < MJ_MAX_GUEST)
+          mj_guestType[mj_guestNum++] = t;
     }
-    for (int i = 0; i < 10; i++) {
-      lg_buffs[i].buffId = j["lg_buffs"][i]["buffId"];
-      lg_buffs[i].coolTime = j["lg_buffs"][i]["coolTime"];
-      lg_buffs[i].isActive = j["lg_buffs"][i]["isActive"];
-      if (lg_buffs[i].buffId >= 0)
-        lg_haveBuff[lg_buffs[i].buffId] = true;
-    }
+    if (j.contains("mj_deyilvBonus"))
+      for (int i = 0; i < 6; i++)
+        mj_deyilvBonus[i] = j["mj_deyilvBonus"][i];
 
-    lg_pickedBuffsNum = j["lg_pickedBuffsNum"];
-    for (int i = 0; i < 9; i++) {
-      lg_pickedBuffs[i] = j["lg_pickedBuffs"][i];
-    }
-
-
-    //游戏里的显示是按顺序的
-    std::sort(lg_pickedBuffs, lg_pickedBuffs + lg_pickedBuffsNum, ScenarioBuffInfo::defaultOrder);
-
-    lg_blue_active = j["lg_blue_active"];
-    lg_blue_remainCount = j["lg_blue_remainCount"];
-    lg_blue_currentStepCount = j["lg_blue_currentStepCount"];
-    lg_blue_canExtendCount = j["lg_blue_canExtendCount"];
-    lg_green_active = j["lg_green_active"];
-    lg_green_continuationZoneCount = j["lg_green_continuationZoneCount"];
-    lg_green_currentStepCount = j["lg_green_currentStepCount"];
-
-    for (int i = 0; i < 16; i++) {
-      lg_red_friendsGauge[i] = j["lg_red_friendsGauge"][i];
-      lg_red_friendsLv[i] = j["lg_red_friendsLv"][i];
-    }
-
-    calculateScenarioBonus(); 
     calculateTrainingValue();
   //for (int k = 1; k < 5; k++) {
    //     cout << trainValue[1][k] << endl;

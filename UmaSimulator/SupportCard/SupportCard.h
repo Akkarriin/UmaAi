@@ -35,6 +35,8 @@ struct SupportCard
 	double deYiLv = 0;//得意率
 	double failRateDrop = 0; //失败率降低
 	double vitalCostDrop = 0; //体力消费下降
+	double eventRecoveryAmountUp = 0; //事件回复量提升%（友人卡）
+	double eventEffectUp = 0; //事件效果提升%（友人卡）
 	// 方便调用，根据卡片的等级在游戏初始阶段赋值
 
 	int uniqueEffectType = 0; //支援卡固有类型

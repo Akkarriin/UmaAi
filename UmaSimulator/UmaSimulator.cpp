@@ -17,7 +17,7 @@ int main()
 	LANGID lang = GetSystemDefaultLangID();
 	std::cout << "Language ID: " << lang << std::endl;
 	// 可以增加作者信息
-	SetWindowTextW(GetConsoleWindow(), TEXT("UmaAI 传奇杯 | 蒙特卡洛 | 0.1.1-utf8 | Build 250317"));
+	SetWindowTextW(GetConsoleWindow(), TEXT("UmaAI 无人岛 | 蒙特卡洛 | 0.1.1-utf8 | Build 250317"));
 #endif
 
 	SearchResult::initNormDistributionCdfTable();
@@ -40,6 +40,8 @@ int main()
 	main_testAiScore();
 #elif defined UMAAI_SIMULATOR
 	main_playerPlay();
+#elif defined UMAAI_TESTMUJINTO
+	main_testMujinto();
 #elif defined UMAAI_MAINAI
 	main_ai();
 #else

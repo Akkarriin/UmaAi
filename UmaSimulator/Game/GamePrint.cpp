@@ -16,7 +16,7 @@ std::string Person::getPersonName() const
 {
   string s =
     personType == PersonType_unknown ? "未加载" :
-    personType == PersonType_scenarioCard ? "[团]老登" :
+    personType == PersonType_scenarioCard ? "[友]塔克" :
     personType == PersonType_card ? UTF8_rune_cut(cardParam.cardName, 5) :
     personType == PersonType_npc ? "NPC" :
     personType == PersonType_yayoi ? "理事长" :
@@ -24,134 +24,6 @@ std::string Person::getPersonName() const
     "未知";
   return s;
 }
-static string getColoredColorName(int color)
-{
-  if (color == L_red)
-    return "\033[1;31m红\033[0m";
-  else if (color == L_green)
-    return "\033[1;32m绿\033[0m";
-  else if (color == L_blue)
-    return "\033[1;34m蓝\033[0m";
-}
-
-std::string ScenarioBuffInfo::buffDescriptions[57] = {
-  "（オーラ）得意率+30",
-  "（学びの姿勢）hint+80%",
-  "（社交術）羁绊+2",
-  "（最初の一歩）干劲+15%",
-  "（強者の求心力）得意率+60",
-  "（たゆまぬ鍛錬）干劲+30%",
-  "（時には苛烈に）训练+5%",
-  "（共に頂へ）干劲+15%+人头*8%",
-  "（高潔な矜持）绝好调时，干劲+50%",
-  "（極限の集中）绝好调时，hint+200%",
-  "（Dear friend）友情训练后，干劲+1，3回合CD",
-  "（慈愛の微笑み）休息后，干劲+1，友情+60%",
-  "（心眼）绝好调时，必然发生hint",
-  "（英気を養う）休息后，训练+50%。hint量+1",
-  "（愛しの子よ、共に栄光へ）绝好调时，友情+15%，超绝好调再+20%",
-  "（Off we go）休息后，干劲+200%，体力消耗-100%",
-  "（高潔なる魂）绝好调时，干劲+120%",
-  "（歴史に名を残す覚悟）绝好调时，得意率+100",
-  "（絆が織りなす光）绝好调时，友情+25%",
-  "（協力申請）得意率+30",
-  "（観察眼）hint+80%",
-  "（交渉術）羁绊+2",
-  "（リーダーシップ）训练+3%",
-  "（気配り上手）得意率+60",
-  "（奮励努力）训练+3%，干劲+15%",
-  "（手法の改善提案）训练+5%",
-  "（切磋琢磨）训练+2+人头*2%",
-  "（衰えぬ情熱）训练成功后，训练+7%",
-  "（未来を見据えて）友情训练后，hint量+1",
-  "（磨励自彊）训练成功后，体力消耗-15%",
-  "（君となら、もっと！）友情+22%",
-  "（飽くなき挑戦心）训练成功后，训练+25%",
-  "（日進月歩）训练+20%",
-  "（雲海蒼天）训练成功后，训练+15%，挑战中再+15%",
-  "（共に切り開く未来）训练成功后，人头+3，2回合CD",
-  "（百折不撓）训练成功后，干劲+120%",
-  "（革命の青写真）训练成功后，hint+250%",
-  "（集いし理想）训练成功后，友情+25%",
-  "（アピール上手）得意率+30",
-  "（トレンドチェック）hint+80%",
-  "（トーク術）羁绊+2",
-  "（アイドルステップ）友情+5%",
-  "（個性を伸ばして）得意率+60",
-  "（溢れるバイタリティ）友情+3，干劲+15%",
-  "（レッスンのコツ）训练+5%",
-  "（素敵なハーモニー）友情+3%+彩圈人头*3%",
-  "（リズムを合わせて）友情训练后，人头+1，2回合CD",
-  "（ヒラメキの連鎖）3人以上训练后，hint数+1",
-  "（心繋がるパフォーマンス）3人以上训练后，羁绊+3，友情+10%",
-  "（トレーニングの約束）休息后，训练+15%，人头+3",
-  "（ユニゾンパフォーマンス）3人以上训练后，人头+1",
-  "（一緒に輝きましょう！）友情+22%",
-  "（絆が奏でるハーモニー）训练+7%+人头*7%",
-  "（溢れる魅力）3人以上训练后，出现率+25",
-  "（怪物チャンスマイル♪）友情训练后，干劲+150%",
-  "（アピール大成功！）友情训练后，得意率+100",
-  "（国民的アイドルウマ娘）5人以上训练后，友情+20%，训练+20%",
-};
-
-
-std::string ScenarioBuffInfo::getScenarioBuffName(int16_t buffId)
-{
-  if (buffId < 0)return "(空)";
-  int color = buffId / 19;
-  int starIdx = buffId % 19;
-  int star = starIdx < 4 ? 1 : starIdx < 10 ? 2 : 3;
-  string s = to_string(star);
-  string buffDescr = ScenarioBuffInfo::buffDescriptions[buffId];
-  if (color == L_red)
-    s = "\033[1;31m(红" + s + ")" + buffDescr + "\033[0m";
-  else if (color == L_green)
-    return "\033[1;32m(绿" + s + ")" + buffDescr + "\033[0m";
-  else if (color == L_blue)
-    return "\033[1;34m(蓝" + s + ")" + buffDescr + "\033[0m";
-  return s;
-}
-
-bool ScenarioBuffInfo::defaultOrder(int16_t a, int16_t b)
-{
-  if (a / 19 < b / 19)return true;
-  if (a / 19 > b / 19)return false;
-  if (getBuffStarStatic(a) > getBuffStarStatic(b))return true;
-  if (getBuffStarStatic(a) < getBuffStarStatic(b))return false;
-  return a < b;
-}
-
-std::string ScenarioBuffInfo::getName() const
-{
-  return getScenarioBuffName(buffId);
-}
-
-std::string ScenarioBuffInfo::getColoredState() const
-{
-  string name = getName();
-  if (isActive)
-    name = "\033[1;32m[O]\033[0m" + name;
-  else if (coolTime == 0)
-  {
-    name = "\033[1;31m[X]\033[0m" + name;
-  }
-  else if (coolTime > 0)
-  {
-    name = "\033[1;35m[" + to_string(coolTime) + "]\033[0m" + name;
-  }
-
-  return name;
-}
-
-int16_t ScenarioBuffInfo::getBuffStarStatic(int16_t id)
-{
-  if (id < 0)return -1;
-  int idx = id % 19;
-  if (idx < 4)return 1;
-  else if (idx < 10)return 2;
-  else return 3;
-}
-
 std::string Game::getPersonStrColored(int personId, int atTrain) const
 {
   if (personId < 0)
@@ -175,61 +47,33 @@ std::string Game::getPersonStrColored(int personId, int atTrain) const
       s = s + ":" + to_string(friendship);
     return "\033[35m" + s + "\033[0m";
   }
-  else//支援卡/红登npc
+  else if (personId >= PS_guest0 && personId < PS_guestEnd)
+  {
+    int g = personId - PS_guest0;
+    return "\033[90m[" + Action::trainingName[mj_guestType[g]] + "]嘉宾\033[0m";
+  }
+  else//支援卡
   {
     string s = "";
-    //根据闪彩等给名称加颜色
-    if (personId < 6)//card
+    const Person& p = persons[personId];
+    s = p.getPersonName();
+    if (p.friendship < 100)
+      s = s + ":" + to_string(p.friendship);
+    if (p.personType == PersonType_scenarioCard)
+      s = "\033[32m" + s + "\033[0m"; // 友人
+    else if (p.personType == PersonType_card)
     {
-      const Person& p = persons[personId];
-      s = p.getPersonName();
-      if (p.personType != PersonType_npc)
-      {
-        if (p.friendship < 100)
-          s = s + ":" + to_string(p.friendship);
-      }
-      if (p.personType == PersonType_scenarioCard)
-        s = "\033[32m" + s + "\033[0m"; // 友人
-      else if (p.personType == PersonType_card)
-      {
-        if (isCardShining(personId, atTrain))
-          s = "\033[1;36m" + s + "\033[0m"; //闪彩
-        else if (p.friendship < 80)
-          s = "\033[33m" + s + "\033[0m"; //需要拉羁绊
-      }
-      else assert(false);
-
-      //技能启发
-      if (p.personType == PersonType_card && p.isHint)
-        s = "\033[31m!\033[0m" + s;
-
-      //return s;
-    }
-    else if (personId >= PS_npc0 && personId <= PS_npc4)
-    {
-      int tra = personId - PS_npc0;
-      s = "[" + Action::trainingName[tra] + "]NPC";
-      assert(lg_mainColor == L_red);
       if (isCardShining(personId, atTrain))
-        s = "\033[36m" + s + "\033[0m";
-    }
-    else
-    {
-      assert(false);
-      return "\033[31mUnknown\033[0m";
+        s = "\033[1;36m" + s + "\033[0m"; //闪彩
+      else if (p.friendship < 80)
+        s = "\033[33m" + s + "\033[0m"; //需要拉羁绊
     }
 
-    if (lg_mainColor == L_red)
-    {
-      int gauge = lg_red_friendsGauge[personId];
-      if (gauge == 20)
-        s = s + "\033[1;33mMAX\033[0m";
-      else
-        s = s + "\033[31m:" + to_string(gauge) + "\033[0m";
-    }
+    //技能启发
+    if (p.personType == PersonType_card && p.isHint)
+      s = "\033[31m!\033[0m" + s;
     return s;
   }
-  
 }
 
 void Game::printEvents(string s) const
@@ -343,45 +187,33 @@ void Game::print() const
   //友人卡状态
   if (friend_type == 1 || friend_type == 2)
   {
-    if (friend_stage == 0)
+    if (friend_stage == FriendStage_notClicked)
       cout << termcolor::cyan << "友人卡未点击" << termcolor::reset << endl;
-    else if (friend_stage == 1)
+    else if (friend_stage == FriendStage_beforeUnlockOutgoing)
       cout << termcolor::cyan << "友人出行未解锁" << termcolor::reset << endl;
     else
+      cout << termcolor::cyan << "友人出行已走 " << friend_outgoingNum << "/5" << termcolor::reset << endl;
+  }
+
+  //无人岛剧本状态
+  {
+    static const string facNames[6] = { "速","耐","力","根","智","海" };
+    cout << "设施：";
+    for (int f = 0; f < 6; f++)
     {
-      if (friend_qingre)
-      {
-        cout << termcolor::bright_green << "团卡情热状态已持续 " << friend_qingreTurn << " 回合" << termcolor::reset << endl;
-      }
-      if (friend_outgoingUsed[4])
-        cout << termcolor::cyan << "友人出行已走完" << termcolor::reset << endl;
-      else
-      {
-
-        cout << termcolor::cyan << "友人出行剩余: ";
-        for (int i = 0; i < 5; i++)
-        {
-          if (friend_outgoingUsed[i])
-            cout << termcolor::red << "X " << termcolor::reset;
-          else
-            cout << termcolor::bright_green << "O " << termcolor::reset;
-        }
-        cout << endl;
-
-      }
+      int lv = mj_facilityLevel[f];
+      cout << facNames[f] << (lv > 0 ? "\033[32m" : "\033[90m") << lv;
+      if (f != MJ_house && lv >= 3)
+        cout << (mj_facilityJukuren[f] ? "熟" : "本");
+      cout << "\033[0m ";
     }
+    cout << " 岛训练券：" << mj_ticket << endl;
+    cout << "发展pt：\033[33m" << mj_pioneerPt << "\033[0m/" << mj_requiredPt1 << "/" << mj_requiredPt2 << "  计划：";
+    for (int i = 0; i < mj_planNum; i++)
+      cout << mj_plan[i].toString() << " ";
+    cout << endl;
+    cout << "评价会加成：训练+" << mj_bonusTrainingEffect << "% hint+" << mj_bonusHint << "% 发展pt+" << mj_bonusPioneerPt << "%  嘉宾" << mj_guestNum << "人" << endl;
   }
-
-  if (turn < 72)
-  {
-    int nextGetBuff = (turn / 6 + 1) * 6;
-    cout << "距离下次选心得还有 " << nextGetBuff - turn << " 回合" << endl;
-  }
-  for (int c = 0; c < 3; c++)
-  {
-    cout << getColoredColorName(c) << "=" << lg_gauge[c] << "/8   ";
-  }
-  cout << endl;
 
   {
     string vitalColor;
@@ -404,45 +236,10 @@ void Game::print() const
         motivation == 2 ? "\033[31m不调\033[0m" :
         motivation == 3 ? "\033[31m普通\033[0m" :
         motivation == 4 ? "\033[33m好调\033[0m" :
-        motivation == 5 ? (lg_blue_active?"\033[1;34m超绝好调\033[0m" :"\033[32m绝好调\033[0m" )
+        motivation == 5 ? "\033[32m绝好调\033[0m"
         : "未知") << endl;
     cout << endl;
   }
-
-  if (lg_mainColor == L_blue)
-  {
-    if (lg_blue_active)
-    {
-      cout << "超绝好调剩余\033[32m" << lg_blue_remainCount << "\033[0m回合，可延长\033[32m" << lg_blue_canExtendCount << "\033[0m次";
-      cout << endl;
-    }
-    else
-    {
-      cout << "超绝好调充能\033[32m" << lg_blue_currentStepCount << "\033[0m/3";
-      cout << endl;
-    }
-  }
-
-  if (lg_mainColor == L_green)
-  {
-    if (lg_green_active)
-    {
-      cout << "挑战领域第\033[32m" << lg_green_continuationZoneCount << "\033[0m回合";
-      cout << endl;
-    }
-    else
-    {
-      cout << "挑战充能\033[32m" << lg_green_currentStepCount << "\033[0m/4";
-      cout << endl;
-    }
-  }
-
-  for (int i = 0; i < 10; i++)
-  {
-    printStrFixedWidth(lg_buffs[i].getColoredState(), 80);
-    cout << endl;
-  }
-  
 
   //string divLine = "|------------------------------------------------------------------------------------|\n";
 
@@ -491,8 +288,6 @@ void Game::print() const
       int fRate = failRate[i];
       if (fRate > 0)
         s = s + "(\033[31m" + to_string(fRate) + "%\033[0m)";
-      else if(lg_green_active)
-        s = s + "(绿登\033[31m" + to_string(lg_green_endRate[i]) + "%\033[0m)";
       else
         s = s + "(0%)";
       oneRow[i] = s;
@@ -507,15 +302,7 @@ void Game::print() const
     {
       string oneRow[5];//表格中一行要显示的内容
       for (int i = 0; i < 5; i++)
-      {
-        int gaugeGain = trainShiningNum[i] > 0 ? 3 : 1;
-        int gaugeColor = lg_trainingColor[i];
-        int currentLv = lg_gauge[gaugeColor];
-        int lvAfterTrain = currentLv + gaugeGain;
-        if (lvAfterTrain > 8)lvAfterTrain = 8;
-        string s = currentLv == 8 ? "MAX" : to_string(currentLv) + "->" + to_string(lvAfterTrain);
-        oneRow[i] = getColoredColorName(gaugeColor) + ": " + s;
-      }
+        oneRow[i] = "发展pt+" + to_string(mj_trainPioneerPt[i]);
       printTableRow(oneRow);
     }
 
@@ -538,32 +325,16 @@ void Game::print() const
     if (stage == ST_decideEvent)
     {
       cout << termcolor::cyan << "选事件阶段" << termcolor::reset << endl;
-      if (decidingEvent == DecidingEvent_three)
-      {
-        cout << termcolor::green << "正在选择团卡三选一事件" << termcolor::reset << endl;
-      }
-      else if (decidingEvent == DecidingEvent_outing)
+      if (decidingEvent == DecidingEvent_outing)
       {
         cout << termcolor::green << "正在选择出行" << termcolor::reset << endl;
       }
       else
         throw("未知的decideEvent");
     }
-    else if (stage == ST_chooseBuff)
-    {
-      cout << termcolor::cyan << "选择心得中：" << termcolor::reset << endl;
-      for (int i = 0; i < lg_pickedBuffsNum; i++)
-      {
-        cout << ScenarioBuffInfo::getScenarioBuffName(lg_pickedBuffs[i]) << endl;
-      }
-    }
     else if (stage == ST_distribute)
     {
       cout << termcolor::red << "非操作阶段：正在分配人头" << termcolor::reset << endl;
-    }
-    else if (stage == ST_pickBuff)
-    {
-      cout << termcolor::red << "非操作回合：正在抽取buff" << termcolor::reset << endl;
     }
     else if (stage == ST_event)
     {
@@ -579,7 +350,6 @@ void Game::print() const
   else if (stage==ST_train && isRacing)
   {
     cout << divLineWhite;
-    cout << "比赛颜色：" << getColoredColorName(lg_trainingColor[T_race]) << endl;
     cout << termcolor::red << "比赛回合" << termcolor::reset << endl;
     return;//比赛回合就不显示训练了
   }
@@ -688,33 +458,6 @@ void Game::print() const
     }
   }
   cout << divLineWhite;
-
-  //休息外出比赛的菜种
-  {
-    string oneRow[5];//表格中一行要显示的内容
-
-    for (int t = 5; t < 8; t++)
-    {
-      string s;
-      if (t == 5)
-        s = "休息";
-      else if (t == 6)
-        s = "外出";
-      else if (t == 7)
-        s = "比赛";
-      Action action(ST_train, t);
-      if(!isLegal(action))
-        s = "\033[31m" + s + ":__\033[0m";
-      else
-      {
-        int color = lg_trainingColor[t];
-        s = s + ":";
-        s = s + "\033[33m" + getColoredColorName(color) + "\033[0m";
-      }
-      oneRow[t - 5] = s;
-    }
-    printTableRow(oneRow);
-  }
 
   cout << divLineWhite;
 

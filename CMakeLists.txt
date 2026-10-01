@@ -6,6 +6,7 @@ project(UmaAi CXX)
 # 产物：
 #   build/UmaAi          主程序（UMAAI_MAINAI），在仓库根目录运行（读取 ./db、./aiConfig_cpu.json、./thisTurn.json）
 #   build/UmaAiTestScore 自对局测分（UMAAI_TESTSCORE），在 build/ 目录运行（读取 ../db、../ConfigTemplate/testConfig.json）
+#   build/UmaAiTestMujinto 无人岛规则的数值自检（UMAAI_TESTMUJINTO），在 build/ 目录运行
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -48,16 +49,29 @@ else()
   set(UMAAI_WS_INCLUDES)
 endif()
 
-function(umaai_add_target name mode)
-  add_executable(${name} ${UMAAI_SOURCES})
-  target_compile_definitions(${name} PRIVATE UMAAI_MODE_SET_BY_BUILD ${mode} ${UMAAI_WS_DEFS})
-  target_include_directories(${name} PRIVATE ${UMAAI_WS_INCLUDES})
-  target_link_libraries(${name} PRIVATE Threads::Threads ZLIB::ZLIB)
+# 只有入口和GamePrint.cpp（PRINT_GAME_EVENT）跟模式有关，其余源文件只编译一次
+set(UMAAI_MODE_SOURCES ${SRC_DIR}/UmaSimulator.cpp ${SRC_DIR}/Game/GamePrint.cpp)
+list(REMOVE_ITEM UMAAI_SOURCES ${UMAAI_MODE_SOURCES})
+
+function(umaai_setup target)
+  target_compile_definitions(${target} PRIVATE UMAAI_MODE_SET_BY_BUILD ${UMAAI_WS_DEFS})
+  target_include_directories(${target} PRIVATE ${UMAAI_WS_INCLUDES})
   if(OpenMP_CXX_FOUND)
-    target_link_libraries(${name} PRIVATE OpenMP::OpenMP_CXX)
+    target_link_libraries(${target} PRIVATE OpenMP::OpenMP_CXX)
   endif()
-  target_compile_options(${name} PRIVATE -w)
+  target_compile_options(${target} PRIVATE -w)
+endfunction()
+
+add_library(umaai_common OBJECT ${UMAAI_SOURCES})
+umaai_setup(umaai_common)
+
+function(umaai_add_target name mode)
+  add_executable(${name} ${UMAAI_MODE_SOURCES} $<TARGET_OBJECTS:umaai_common>)
+  umaai_setup(${name})
+  target_compile_definitions(${name} PRIVATE ${mode})
+  target_link_libraries(${name} PRIVATE Threads::Threads ZLIB::ZLIB)
 endfunction()
 
 umaai_add_target(UmaAi UMAAI_MAINAI)
 umaai_add_target(UmaAiTestScore UMAAI_TESTSCORE)
+umaai_add_target(UmaAiTestMujinto UMAAI_TESTMUJINTO)

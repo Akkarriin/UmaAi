@@ -66,6 +66,8 @@ void SupportCard::load_from_json(json& j, int x) {
 		deYiLv = j["cardValue"][x].value<double>("deYiLv", 0);
 		failRateDrop = j["cardValue"][x].value<double>("failRateDrop", 0);
 		vitalCostDrop = j["cardValue"][x].value<double>("vitalCostDrop", 0);
+		eventRecoveryAmountUp = j["cardValue"][x].value<double>("eventRecoveryAmountUp", 0);
+		eventEffectUp = j["cardValue"][x].value<double>("eventEffectUp", 0);
 
 		j["cardValue"][x].at("bonus").get_to(bonusBasic);
 		j["cardValue"][x].at("initialBonus").get_to(initialBonus);

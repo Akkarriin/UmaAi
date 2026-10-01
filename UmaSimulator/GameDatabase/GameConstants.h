@@ -4,8 +4,9 @@
 #include <unordered_map>
 #include "../config.h"
 
-const int TOTAL_TURN = 72;
-const int MAX_INFO_PERSON_NUM = 6;//有单独信息的人头个数（此剧本只有支援卡）
+const int TOTAL_TURN = 78;
+const int MAX_INFO_PERSON_NUM = 6;//有单独信息的人头个数（支援卡），无人岛的嘉宾不单独存Person
+const int MJ_MAX_GUEST = 11;//无人岛剧本最多11个嘉宾（PJ参加者16人，包括自己的非友人卡）
 
 class GameConstants
 {
@@ -20,28 +21,28 @@ public:
   static const double EventProb;//每回合有EventProb概率随机一个属性以及pt +EventStrengthDefault，模拟支援卡事件
   static const int EventStrengthDefault;
 
-  //剧本卡相关
-  static const int FriendCardIdSSR = 30241;//SSR团
-  static const int FriendCardIdR = 19999;//无r卡
+  //剧本卡相关（塔克布莱恩）
+  static const int FriendCardIdSSR = 30257;//SSR [本能は吼えているか！？]タッカーブライン
+  static const int FriendCardIdR = 10128;//R [無人島PJ責任者]タッカーブライン
   static const double FriendUnlockOutgoingProbEveryTurnLowFriendship;//每回合解锁外出的概率，羁绊小于60
   static const double FriendUnlockOutgoingProbEveryTurnHighFriendship;//每回合解锁外出的概率，羁绊大于等于60
   //static const double FriendEventProb;//友人事件概率//常数0.4写死在对应函数里了
-  static const double FriendVitalBonusSSR[5];//友人SSR卡的回复量倍数（满破1.6）
-  static const double FriendVitalBonusR[5];//友人R卡的回复量倍数
-  static const double FriendStatusBonusSSR[5];//友人SSR卡的事件效果倍数（满破1.25）
-  static const double FriendStatusBonusR[5];//友人R卡的事件效果倍数
+  static const double FriendClickEventProb;//友人训练后事件的概率（待测）
+  static const double FriendClickEventGreatProb;//友人训练后事件大成功（心情+1）的概率（待测）
 
-  static const double FriendQingreStopProb[10];//团卡已经情热x回合后，本回合有多大概率终止
-  
 
   //剧本相关
   static const std::vector<int> LinkCharas;// Link角色
 
-
-  static const double LG_redLvXunlianCard[10];//红登不同等级的卡的训练加成
-  static const double LG_redLvXunlianNPC[10];//红登不同等级的npc的训练加成
-  static const double LG_redLvYouqingNPC[10];//红登不同等级的npc的友情加成
-
+  //无人岛剧本，数据来自 umasim 的 mujinto_memo.md 与实测表
+  static const int MJ_CampTrainingValue[2][5][7];//岛合宿训练基础值[设施是否已建][训练][速耐力根智pt体力]
+  static const int MJ_FacilitySpace[3][6];//建设计划可用格数[linkMode][phase]
+  static const int MJ_EvalStatus[2][6];//评价会全属性[好评/大好评][phase]
+  static const int MJ_EvalPt[2][6];//评价会技能点[好评/大好评][phase]
+  static const int MJ_EvalHpDivider[6];//大好评时超出的发展pt每多少换1体力
+  static const int MJ_EvalHpMax[6];//大好评体力上限
+  static const int MJ_EvalBonus[2][6][3];//评价会后的加成[好评/大好评][phase]{训练效果,hint率,发展pt加成}
+  static const int MJ_GuestTotal[6];//评价会后PJ参加人数（含自己的非友人卡），0表示不变
 
 
   //评分

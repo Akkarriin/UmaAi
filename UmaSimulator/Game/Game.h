@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include <random>
 #include <array>
 #include "../GameDatabase/GameDatabase.h"
@@ -9,71 +9,27 @@ struct SearchParam;
 
 struct Game;
 
-enum LegendColorEnum :int16_t
+//无人岛剧本的设施种类，0~4是速耐力根智，5是海之家
+enum MujintoFacilityTypeEnum :int8_t
 {
-  L_blue,//蓝
-  L_green,//绿
-  L_red,//红（粉）
-  L_unknown=-1,
+  MJ_speed = 0,
+  MJ_stamina,
+  MJ_power,
+  MJ_guts,
+  MJ_wiz,
+  MJ_house,//海の家
 };
 
-//剧本“心得”
-//游戏里id是 4位数"XY0Z"里X是颜色，Y是星数，Z是第几个
-//此处-1是空，57个buff用0~56表示
-struct ScenarioBuffInfo
+//无人岛剧本的一个设施（或者建设计划里的一项）
+struct MujintoFacility
 {
-  int16_t buffId;
-  bool isActive;
-  int16_t coolTime;
-  ScenarioBuffInfo();
-  int16_t getBuffColor() const;
-  int16_t getBuffStar() const;
-  std::string getName() const;
-  std::string getColoredState() const;
-
-  static int16_t getBuffStarStatic(int16_t id);
-  static std::string buffDescriptions[57];
-  static std::string getScenarioBuffName(int16_t buffId);
-  static bool defaultOrder(int16_t a, int16_t b);
-};
-
-//剧本加成   //，只考虑五个训练共有的部分，按人头的不算
-//每次计算训练数值前都会重新计算这个
-struct ScenarioBonus
-{
-  float hintProb;//红点概率提升%
-  int16_t hintLv;//红点等级提升
-  int16_t moreHint;//追加几个hint
-  bool alwaysHint;//一定出现hint
-  
-  float vitalReduce;//体力消耗减少%
-  float jibanAdd1;//羁绊增加量1（点击或hint）
-  float jibanAdd2;//羁绊增加量2（只包括点击）
-  float deyilv;//得意率提升%
-  float disappearRateReduce;//消失率减少。原本的普通卡消失率是50，友人100。有对应buff时减少25
-
-  float xunlian;//训练加成%
-  float ganjing;//干劲加成%
-  float youqing;//友情加成%
-
-  int16_t extraHead;//追加人头的个数
-
-  float xunlianPerHead;//每个人头额外多少训练加成
-  float ganjingPerHead;//每个人头额外多少干劲加成
-  float youqingPerShiningHead;//每个闪彩人头额外多少友情加成
-  ScenarioBonus();
-  void clear();
-};
-
-struct ScenarioBuffCondition //触发buff的各种条件
-{
-  bool isRest;
-  bool isTraining;
-  bool isYouqing;
-  int16_t trainingSucceed;
-  int16_t trainingHead;
-  ScenarioBuffCondition();
-  void clear();
+  int8_t type;//MujintoFacilityTypeEnum
+  int8_t level;//速耐力根智1~5，海之家1~3
+  bool jukuren;//Lv3以上：false本能，true熟练
+  MujintoFacility();
+  MujintoFacility(int type, int level, bool jukuren);
+  int space() const;//占用几格
+  std::string toString() const;
 };
 
 struct GameSettings
@@ -88,8 +44,6 @@ struct GameSettings
   float hintProbTimeConstant;//已经有t级技能hint时，令hint出技能的概率=0.9*(1-exp(-exp(2-t/T)))，其中T=hintProbTimeConstant，默认80
   int16_t eventStrength;//每回合有（待测）概率加这么多属性，模拟支援卡事件
   int16_t scoringMode;//评分方式
-
-  int16_t color_priority;//优先选择哪种颜色，-1为无优先
 
   GameSettings();
 };
@@ -112,38 +66,29 @@ enum personIdEnum :int16_t
   PS_none = -1,//未分配
   PS_noncardYayoi = 6,//非卡理事长
   PS_noncardReporter = 7,//非卡记者
-  PS_npc = 8,//NPC（备用）
-  PS_npc0 = 10,//NPC速
-  PS_npc1 = 11,//NPC耐
-  PS_npc2 = 12,//NPC力
-  PS_npc3 = 13,//NPC根
-  PS_npc4 = 14,//NPC智
+  PS_guest0 = 10,//无人岛嘉宾，PS_guest0+i是第i个嘉宾
+  PS_guestEnd = PS_guest0 + MJ_MAX_GUEST,
 };
 
 
-//int16_t stage;//分配人头前1，分配人头后c2，训练后有团卡事件（选出行或三选一）3，抽取心得前4（如果有），选心得5（如果有），固定与随机事件前6，6之后进入stage1
-//对于神经网络stage2可以计算policy，stage4/6可以计算value
-//stage2时神经网络直接输出选择的训练
-//stage3/5时，列举所有选项分别进行一步（此过程没有随机性），然后分别调用神经网络计算value，取value最高的作为选项
+//stage：分配人头前ST_distribute，分配人头后ST_train，训练后若需要选友人出行则ST_decideEvent，然后ST_event处理固定与随机事件，之后进入下一回合的ST_distribute
+//对于神经网络ST_train可以计算policy，ST_event可以计算value
+//ST_decideEvent时，列举所有选项分别进行一步（此过程没有随机性），然后分别调用神经网络计算value，取value最高的作为选项
 enum StageEnum :int16_t
 {
   ST_none,
   ST_distribute,//分配人头前
   ST_train,//训练前
-  ST_decideEvent,//选择团卡事件前
-  ST_pickBuff,//随机抽取心得前
-  ST_chooseBuff,//选心得前
+  ST_decideEvent,//选择友人出行前
   ST_event,//处理事件前
-  ST_action_randomize,//仅用于action，表示ST_train或ST_chooseBuff前的随机化
+  ST_action_randomize,//仅用于action，表示ST_train前的随机化
 };
 
-//int16_t decidingEvent;//需要处理的含选择项的事件。选buff 1，团卡出行 2，团卡三选一 3
+//需要处理的含选择项的事件
 enum DecidingEventEnum :int16_t
 {
   DecidingEvent_none,
-  DecidingEvent_RESERVED,
-  DecidingEvent_outing,//团卡出行
-  DecidingEvent_three,//团卡三选一
+  DecidingEvent_outing,//友人出行。idx 0普通外出，1友人出行（第3段选上），2友人出行第3段选下
 };
 
 enum TrainActionTypeEnum :int16_t
@@ -167,10 +112,10 @@ struct Action
   //static const Action Action_RedistributeCardsForTest;
   static const int MAX_ACTION_TYPE = 8;
   
-  int16_t stage;//这个action是作用于哪个stage的，如果是ST_distribute、ST_pickBuff、ST_event这三个不需要做出任何选择的stage，则无视以下内容
-  int16_t idx;//stage=ST_train时为训练，01234速耐力根智，5外出，6休息，7比赛。stage=ST_decideEvent和ST_chooseBuff时是选第几个
+  int16_t stage;//这个action是作用于哪个stage的，如果是ST_distribute、ST_event这些不需要做出任何选择的stage，则无视以下内容
+  int16_t idx;//stage=ST_train时为训练，01234速耐力根智，5休息，6外出，7比赛。stage=ST_decideEvent时是选第几个
   Action();//空Action
-  Action(int st);//ST_distribute、ST_pickBuff、ST_event这三个不需要做出任何选择的stage
+  Action(int st);//ST_distribute、ST_event这些不需要做出任何选择的stage
   Action(int st, int idx);//需要做选择的stage
 
   //bool isActionStandard() const;
@@ -213,71 +158,62 @@ struct Game
   int16_t zhongMaBlueCount[5];//种马的蓝因子个数，假设只有3星
   int16_t zhongMaExtraBonus[6];//种马的剧本因子以及技能白因子（等效成pt），每次继承加多少。全大师杯因子典型值大约是30速30力200pt
 
-  int16_t stage;//int16_t stage;//分配人头前1，分配人头后2，训练后有团卡事件（选出行或三选一）3，抽取心得前4（如果有），选心得5（如果有），固定与随机事件前6，6之后进入stage1
-  int16_t decidingEvent;//需要处理的含选择项的事件。选buff 1，团卡出行 2，团卡三选一 3
+  int16_t stage;//见StageEnum
+  int16_t decidingEvent;//需要处理的含选择项的事件，见DecidingEventEnum
   bool isRacing;//这个回合是否在比赛
 
   int16_t friendship_noncard_yayoi;//非卡理事长羁绊
   int16_t friendship_noncard_reporter;//非卡记者羁绊
 
-  Person persons[MAX_INFO_PERSON_NUM];//依次是6张卡。非卡理事长，记者，NPC们不单独分配person类，编号一律8
-  int16_t personDistribution[5][5];//每个训练有哪些人头id，personDistribution[哪个训练][第几个人头]，空位置为-1，0~5是6张卡，非卡理事长6，记者7，NPC参见personIdEnum
+  Person persons[MAX_INFO_PERSON_NUM];//依次是6张卡。非卡理事长，记者，嘉宾不单独分配person类
+  int16_t personDistribution[5][5];//每个训练有哪些人头id，personDistribution[哪个训练][第几个人头]，空位置为-1，0~5是6张卡，非卡理事长6，记者7，嘉宾参见personIdEnum
   //int lockedTrainingId;//是否锁训练，以及锁在了哪个训练。可以先不加，等ai做完了有时间再加。
 
   int16_t saihou;//赛后加成
 
 
-  //剧本相关--------------------------------------------------------------------------------------
-  
-  int16_t lg_mainColor;//主色
-  int16_t lg_gauge[3];//三种颜色的格数
-  int16_t lg_trainingColor[8];//训练的gauge颜色
-  //bool lg_trainingColorBoost[8];//训练的gauge是否+3
+  //剧本相关（无人岛）--------------------------------------------------------------------------------------
+  //规则实现见Mujinto.cpp
 
-
-  ScenarioBuffInfo lg_buffs[10];//10个buff，空则buffId=0
-  bool lg_haveBuff[57];//有哪些buff，和lg_buffs重复但是便于查找
-  int16_t lg_pickedBuffsNum;//抽取到了几个buff
-  int16_t lg_pickedBuffs[9];//抽取到的buff的id
-
-
-  int16_t lg_blue_active;//蓝登的超绝好调
-  int16_t lg_blue_remainCount;//超绝好调还剩几个回合
-  int16_t lg_blue_currentStepCount;//满3格启动超绝好调
-  int16_t lg_blue_canExtendCount;//还能延长几次
-
-  bool lg_green_active;
-  int16_t lg_green_continuationZoneCount;
-  int16_t lg_green_currentStepCount;
-  int16_t lg_green_endRate[5];
-
-  int16_t lg_red_friendsGauge[16];//红登的羁绊条，编号和personIdEnum对应
-  int16_t lg_red_friendsLv[16];//红登的等级条，编号和personIdEnum对应
+  int16_t mj_linkMode;//0没带塔克布莱恩，1塔克布莱恩Lv40以下，2塔克布莱恩Lv41以上。决定每次建设计划的格数
+  int8_t mj_facilityLevel[6];//已建成的设施等级，0是未建，下标见MujintoFacilityTypeEnum
+  bool mj_facilityJukuren[6];//已建成的设施是否为熟练
+  int8_t mj_planNum;//当前建设计划里还没建成的设施个数
+  MujintoFacility mj_plan[6];//当前建设计划里还没建成的设施，按建设顺序
+  int16_t mj_pioneerPt;//本期发展pt（每次评价会清零）
+  int16_t mj_requiredPt1;//建成前半计划（并获得岛训练券）需要的发展pt
+  int16_t mj_requiredPt2;//建成全部计划（并获得岛训练券）需要的发展pt，也是大好评需要的发展pt
+  int16_t mj_ticket;//岛训练券
+  int16_t mj_bonusTrainingEffect;//评价会加成：普通训练的训练效果%（上层）
+  int16_t mj_bonusHint;//评价会加成：hint发生率%
+  int16_t mj_bonusPioneerPt;//评价会加成：获得发展pt%
+  int16_t mj_evalResult[6];//第i次评价会的结果，0未进行，1好评，2大好评（下标0不用）
+  int16_t mj_guestNum;//嘉宾个数
+  int8_t mj_guestType[MJ_MAX_GUEST];//嘉宾的类型（速耐力根智），岛训练才用到
+  int16_t mj_deyilvBonus[6];//本回合每张卡的额外得意率（塔克布莱恩的事件与固有，上回合获得）
+  int16_t mj_deyilvBonusNext[6];//下回合每张卡的额外得意率
 
 
 
-  //单独处理剧本友人卡，因为接近必带。其他友人团队卡的以后再考虑
+  //单独处理剧本友人卡（塔克布莱恩），因为接近必带。其他友人团队卡的以后再考虑
   int16_t friend_type;//0没带友人卡，1 ssr卡，2 r卡
   int16_t friend_personId;//友人卡在persons里的编号
   double friend_vitalBonus;//友人卡的回复量倍数
   double friend_statusBonus;//友人卡的事件效果倍数
+  int16_t friend_level;//友人卡等级（按突破数取等级上限），影响出行后获得的发展pt
 
   int16_t friend_stage;//0是未点击，1是已点击但未解锁出行，2是已解锁出行
-  bool friend_outgoingUsed[5];//友人的出行哪几段走过了   暂时不考虑其他友人团队卡的出行
-  bool friend_qingre;//团卡是否情热
-  int16_t friend_qingreTurn;//团卡连续情热多少回合了
-
-
+  int16_t friend_outgoingNum;//友人出行走了几段（按顺序，最多5段）
 
 
 
   //可以通过上面的信息计算获得的非独立的信息，每回合更新一次，不需要录入
-  ScenarioBonus lg_bonus;
   int16_t trainValue[5][6];//训练数值的总数（下层+上层），第一个数是第几个训练，第二个数依次是速耐力根智pt
   int16_t trainVitalChange[5];//训练后的体力变化（负的体力消耗）
   int16_t failRate[5];//训练失败率
   int16_t trainHeadNum[5];//训练人头个数，不包括理事长记者
   int16_t trainShiningNum[5];//训练闪彩个数
+  int16_t mj_trainPioneerPt[5];//训练成功能获得的发展pt
 
 
   //训练数值计算的中间变量，存下来方便手写逻辑进行估计
@@ -286,8 +222,6 @@ struct Game
 
   //bool cardEffectCalculated;//支援卡效果是否已经计算过？吃无关菜不需要重新计算，分配卡组或者读json时需要置为false
   //CardTrainingEffect cardEffects[6];
-
-  ScenarioBuffCondition lg_buffCondition;
 
 
 
@@ -334,25 +268,14 @@ public:
 
 
   //原则上这几个private就行，如果private在某些地方非常不方便那就改成public
-  void calculateScenarioBonus();//计算剧本buff的各种加成
-  void randomizeTurn(std::mt19937_64& rand);//回合初的随机化，随机分配人头、随机颜色等，ST_distribute->ST_train
-  void undoRandomize();//准备重新分配，ST_train->ST_distribute或ST_chooseBuff->ST_pickBuff
+  void randomizeTurn(std::mt19937_64& rand);//回合初的随机化，随机分配人头等，ST_distribute->ST_train
+  void undoRandomize();//准备重新分配，ST_train->ST_distribute
   void randomDistributeHeads(std::mt19937_64& rand);//随机分配人头
-  void randomInviteHeads(std::mt19937_64& rand, int num);//随机摇num个人头
-  void inviteOneHead(std::mt19937_64& rand, int idx);//摇personId=idx这个人头
   void calculateTrainingValue();//计算所有训练分别加多少，并计算失败率、训练等级提升等
-  bool applyTraining(std::mt19937_64& rand, int16_t train);//ST_train->ST_decideEvent/ST_pickBuff/ST_event。处理 训练/出行/比赛 本身，不包括友人点击事件，不包括买buff，不包括固定事件和剧本事件。如果不合法，则返回false，且保证不做任何修改
-  void updateScenarioBuffAfterTrain(int16_t trainIdx, bool trainSucceed);//更新各种心得的触发条件
-  void maybeSkipPickBuffStage();//训练结束后检查是否应当进入选buff阶段。每个回合必须调用，如果不是选buff回合会直接修改stage
-  void decideEvent(std::mt19937_64& rand, int16_t idx);//团卡三选一/出行选择
-  void decideEvent_outing(std::mt19937_64& rand, int16_t idx);//团卡出行选择
-  void decideEvent_three(std::mt19937_64& rand, int16_t idx);//团卡三选一
-  void randomPickBuff(std::mt19937_64& rand);//ST_pickBuff->ST_chooseBuff，从buff(心得)池里随机抽取buff
-  int pickSingleBuff(std::mt19937_64& rand, int16_t color, int16_t star);//尝试随机抽取color颜色star星数的心得，如果全被抽完则返回-1
-  void chooseBuff(int16_t idx); //ST_chooseBuff->ST_event，选择第几个buff
-  void checkLgHaveBuff() const;//检查lg_haveBuff[57]和lg_buffs是否匹配，不匹配直接throw
+  bool applyTraining(std::mt19937_64& rand, int16_t train);//ST_train->ST_decideEvent/ST_event。处理 训练/出行/比赛 本身，不包括固定事件和剧本事件。如果不合法，则返回false
+  void decideEvent(std::mt19937_64& rand, int16_t idx);//友人出行选择，ST_decideEvent->ST_event
 
-  void checkEvent(std::mt19937_64& rand);//ST_chooseBuff->ST_distribute检查固定事件和随机事件，并进入下一个回合
+  void checkEvent(std::mt19937_64& rand);//ST_event->ST_distribute检查固定事件和随机事件，并进入下一个回合
   void checkFixedEvents(std::mt19937_64& rand);//每回合的固定事件，包括剧本事件和固定比赛和部分马娘事件等
   void checkRandomEvents(std::mt19937_64& rand);//模拟支援卡事件和随机马娘事件（随机加羁绊，体力，心情，掉心情等）
 
@@ -375,6 +298,10 @@ public:
   {
     return (turn >= 36 && turn <= 39) || (turn >= 60 && turn <= 63);
   }
+  inline bool isCampTraining() const //是否用岛合宿的训练（两次夏合宿和URA期间）
+  {
+    return isXiahesu() || turn >= 72;
+  }
   inline bool isRaceAvailable() const //是否可以额外比赛
   {
     return turn >= 13 && turn <= 71;
@@ -385,43 +312,51 @@ public:
   void addAllStatus(int value);//同时增加五个属性值
   void addVital(int value);//增加或减少体力，并处理溢出
   void addVitalMax(int value);//增加体力上限，限制120
-  void addMotivation(int value);//增加或减少心情，同时考虑“isPositiveThinking和蓝登
-  void addJiBan(int idx,int value,int type);//增加羁绊，并考虑爱娇和buff，也考虑红登充电。type0是点击，type1是hint，type2是不吃任何加成的
+  void addMotivation(int value);//增加或减少心情，同时考虑“isPositiveThinking”
+  void addJiBan(int idx,int value,int type);//增加羁绊，并考虑爱娇。type0是点击，type1是hint，type2是不吃任何加成的
   void addStatusFriend(int idx, int value);//友人卡事件，增加属性值或者pt（idx=5），考虑事件加成
   void addVitalFriend(int value);//友人卡事件，增加体力，考虑回复量加成
   void runRace(int basicFiveStatusBonus, int basicPtBonus);//把比赛奖励加到属性和pt上，输入是不计赛后加成的基础值
   void addTrainingLevelCount(int trainIdx, int n);//为某个训练增加n次计数
   void applyNormalTraining(std::mt19937_64& rand, int16_t train, bool success);//处理五种训练
   void addHintWithoutJiban(std::mt19937_64& rand, int idx);
+  void addRandomCardHint(std::mt19937_64& rand);//随机一张支援卡的hint（评价会等）
   void jicheng(std::mt19937_64& rand);//第二三年的继承
 
   int getTrainingLevel(int trainIdx) const;//计算训练等级
   int calculateFailureRate(int trainType, double failRateMultiply) const;//计算训练失败率，failRateMultiply是训练失败率乘数=(1-支援卡1的失败率下降)*(1-支援卡2的失败率下降)*...
 
-  bool isCardShining(int personIdx, int trainIdx) const;    // 判断指定卡是否闪彩。普通卡看羁绊与所在训练，团队卡看friendOrGroupCardStage
-  //bool trainShiningCount(int trainIdx) const;    // 指定训练彩圈数 //uaf不一定有用
-  void calculateTrainingValueSingle(int tra);//计算每个训练加多少   //uaf剧本可能五个训练一起算比较方便
+  bool isCardShining(int personIdx, int trainIdx) const;    // 判断指定卡是否闪彩
+  void calculateTrainingValueSingle(int tra);//计算每个训练加多少
 
-  //剧本相关
-  void addScenarioBuffBonus(int idx);//添加剧本心得加成到lg_bonus，包含判断部分buff的生效条件（干劲绝好调等）。“训练成功”之类的判定不在这里
-  void updateScenarioBuffCondition(int idx);//更新各种心得的触发条件
-  void addLgGauge(int16_t color, int num);//给color加num格，去掉大于8溢出部分
-  void setMainColorTurn36(std::mt19937_64& rand);//36回合时确定主色，color_priority不为空时强制指定这个颜色，但如果原颜色与指定颜色不同则扣3000分
-  void updateLgGreenStatus(std::mt19937_64& rand, int trainIdx, bool trainSucceed);//训练结束后更新绿登状态
-  void endLgGreenChallenge(int turnCount, bool succeed);//处理挑战结束的收益，通过其他方式终止succeed是true，训练终止是false
-  void updateLgBlueStatus();//回合末更新蓝登状态
-  void calculateLgGreenEndRate();
+  //无人岛剧本（Mujinto.cpp）
+  void mj_init();//开局时初始化剧本状态
+  int mj_facilityIslandBonus(int status) const;//所有设施给岛训练/岛合宿的属性加成，status=0~5速耐力根智pt
+  int mj_campTrainingEffect(int tra) const;//岛合宿某训练的训练效果%（上层）
+  int mj_specialtyRateUp(int cardType) const;//设施给的得意率提升（区分合宿）
+  int mj_positionRateUp() const;//海之家的支援卡出现率提升（不在率降低）
+  int mj_hintRateUp(int tra) const;//设施与评价会的hint发生率提升%
+  bool mj_alwaysHint(int tra) const;//熟练设施让岛合宿必定hint
+  int mj_trainingEffectByFriend() const;//海之家：岛合宿时每个友情训练的卡+5%（下层乘算）
+  int mj_calcTrainingPioneerPt(int headNum, bool shining) const;//训练获得的发展pt
+  int mj_calcRacePioneerPt(bool isGoalRace) const;//比赛获得的发展pt
+  bool mj_canGainPioneerPt() const;//这个回合是否能获得发展pt
+  void mj_addPioneerPt(int pt);//增加发展pt，达到半数/全部时建设计划里的设施（合宿期间延后）
+  void mj_buildPlan(bool all);//建成计划里的前半（达到requiredPt1）或者全部设施，并获得岛训练券
+  void mj_upgradeAfterCamp();//经典年合宿结束后补建合宿期间达到条件的设施
+  void mj_evaluationAndPlan(std::mt19937_64& rand, int phase);//评价会（phase>=1）与制定下一期建设计划
+  void mj_makeDefaultPlan(int phase);//默认的建设计划（手写规则，第4步再做成可选择的阶段）
+  void mj_addGuests(std::mt19937_64& rand, int totalCount);//PJ参加人数增加到totalCount（含自己的非友人卡）
+  void mj_addDeyilvNextTurnAll(int value);//所有支援卡下回合得意率+value
 
-  //友人卡相关事件
+  //友人卡相关事件（塔克布莱恩）
   void handleFriendUnlock(std::mt19937_64& rand);//友人外出解锁
   void handleOutgoing(std::mt19937_64& rand);//外出
   void handleFriendClickEvent(std::mt19937_64& rand, int atTrain);//友人点击事件
-  void handleFriendFixedEvent();//友人固定事件，拜年+结算
-
+  void handleFriendFixedEvent();//友人固定事件，新年+结算
   void runNormalOutgoing(std::mt19937_64& rand);//常规外出
-  void runFriendOutgoing(std::mt19937_64& rand, int idx, int subIdx);//友人外出
-  void runFriendClickEvent(std::mt19937_64& rand, int idx);//友人点击事件
-  
+  void runFriendOutgoing(std::mt19937_64& rand, bool chooseUpper);//友人外出（按顺序下一段），chooseUpper是第3段的选项
+
 
   //算分
   float getSkillScore() const;//技能分，输入神经网络之前也可能提前减去

@@ -11,3 +11,4 @@ void main_testScoreSearch();
 void main_testScoreNoSearch();
 void main_testCuda();
 void main_testOnnx();
+void main_testMujinto();//无人岛剧本规则自检

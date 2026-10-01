@@ -224,7 +224,6 @@ void main_ai()
 				game.gameSettings.eventStrength = GameConfig::eventStrength;
 				game.gameSettings.ptScoreRate = GameConfig::scorePtRate;
 				game.gameSettings.scoringMode = GameConfig::scoringMode;
-				game.gameSettings.color_priority = GameConfig::lgPreferColor;
 			
 				if (!suc)
 				{
@@ -390,7 +389,7 @@ void main_ai()
 					double refScore = scoreLastTurn.value;
 
 					ModelOutputValueV1 reRandomizeValue;//重新随机分配人头或者取buff，计算分数
-					if (game.stage == ST_train || game.stage == ST_chooseBuff) {
+					if (game.stage == ST_train) {
 						Game game3 = game;
 						game3.undoRandomize();
 						reRandomizeValue = search.evaluateNewGame(game3, rand);
@@ -412,8 +411,6 @@ void main_ai()
 					cout << endl;
 					Action bestAction = allAction[bestIdx];
 					cout << "AI建议：" << bestAction.toString(game);
-					if (game.stage == ST_chooseBuff && game.turn != 65)
-						cout << " " << ScenarioBuffInfo::getScenarioBuffName(game.lg_pickedBuffs[bestAction.idx]);
 					cout << endl;
 
 					if (bestAction.stage == ST_train && bestAction.idx == T_outgoing)
@@ -461,7 +458,7 @@ void main_ai()
 						cout << "运气指标：" << " | 本局：";
 						print_luck(int(maxV.scoreMean - scoreFirstTurn.scoreMean));
 						cout << " | 本回合：" << int(maxV.scoreMean - scoreLastTurn.scoreMean);
-						if (game.stage == ST_train || game.stage == ST_chooseBuff) {
+						if (game.stage == ST_train) {
 							cout << "（训练：\033[1;36m" << int(maxV.scoreMean - reRandomizeValue.scoreMean) << "\033[0m";
 						}
 						cout << " | 评分预测: \033[1;32m" << int(maxV.scoreMean) << "\033[0m"
@@ -486,7 +483,7 @@ void main_ai()
 						game4.gameSettings.playerPrint = true;
 						game4.applyActionUntilNextDecision(rand, bestAction);
 						game4.print();
-						if (game4.stage == ST_train || game4.stage == ST_chooseBuff) {
+						if (game4.stage == ST_train) {
 							Game game3 = game;
 							game3.undoRandomize();
 							auto reRandomizeValue2 = search.evaluateNewGame(game3, rand);
