@@ -7,30 +7,30 @@
 
 struct SearchParam;
 
-//手写策略的可调参数（自动调参程序 UmaAiTuneHandwritten 会搜索这些值）
+//手写策略的可调参数。默认值来自 UmaAiTuneHandwritten 自动调参（2026-10-01，4套卡组）
 struct HandwrittenParams
 {
-  double statusWeight = 6;//每点属性的估值
+  double statusWeight = 8.603;//每点属性的估值
   double jibanValue = 3;//每点羁绊（80以下）的估值
-  double vitalFactorStart = 3;//体力估值系数，开局
-  double vitalFactorEnd = 10;//体力估值系数，结束
-  double vitalScaleTraining = 1.0;//训练时体力变化的权重
-  double reserveStatusFactor = 50;//控属性时给每回合预留多少
+  double vitalFactorStart = 2.1;//体力估值系数，开局
+  double vitalFactorEnd = 7;//体力估值系数，结束
+  double vitalScaleTraining = 0.553;//训练时体力变化的权重
+  double reserveStatusFactor = 69.682;//控属性时给每回合预留多少
   double smallFailValue = -300;//训练小失败的估值
-  double bigFailValue = -800;//训练大失败的估值
+  double bigFailValue = -968;//训练大失败的估值
   double outgoingBonusStart = 100;//掉心情时外出的加分，开局
-  double outgoingBonusEnd = 800;//掉心情时外出的加分，结束
+  double outgoingBonusEnd = 682.4;//掉心情时外出的加分，结束
   double raceBonus = 0;//比赛收益，不考虑体力
   double friendFirstClickValue = 150;//第一次点塔克
   double friendBeforeUnlockValue = 60;//点塔克（未解锁出行）
   double friendAfterUnlockValue = 40;//点塔克（已解锁出行）
   double friendOutingValue = 150;//塔克出行的属性与得意率
-  double mj_pioneerPtValue = 2.0;//大好评之前每点发展pt的估值
-  double mj_keepTicketValue = 1000;//留着岛训练券以后用的估值
+  double mj_pioneerPtValue = 1.194;//大好评之前每点发展pt的估值
+  double mj_keepTicketValue = 1300;//留着岛训练券以后用的估值
   double mj_ticketNearThreshold = 150;//离下一次建设不到这么多发展pt时不留券
   double mj_planHouseLv2Value = 3;//计划里海之家Lv2的估值（海之家Lv1总是最优先）
   double mj_planHouseLv3Value = 4;//计划里海之家Lv3的估值
-  double mj_planSpeedExtra = 1.0;//速度设施额外的权重
+  double mj_planSpeedExtra = 1;//速度设施额外的权重
   double mj_planJukurenFactor = 0.6;//熟练相对本能的估值
   double mj_planBaseWeight = 1;//卡组里没有的类型的权重
   double mj_planCardWeight = 2;//卡组里每张该类型支援卡增加的权重
