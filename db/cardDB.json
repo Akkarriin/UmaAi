@@ -82325,5 +82325,215 @@
       0,
       0
     ]
+  },
+  "10128": {
+    "cardId": 10128,
+    "charaId": 0,
+    "cardName": "[友]タッカーブライン",
+    "fullName": "[無人島PJ責任者]タッカーブライン",
+    "rarity": 1,
+    "cardType": 5,
+    "cardValue": [
+      {
+        "filled": true,
+        "bonus": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "initialBonus": [
+          0,
+          15,
+          0,
+          0,
+          0,
+          0
+        ],
+        "hintBonus": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          5
+        ],
+        "hintLevel": 0,
+        "youQing": 0,
+        "ganJing": 15,
+        "xunLian": 5,
+        "initialJiBan": 15,
+        "saiHou": 0,
+        "hintProbIncrease": 0,
+        "deYiLv": 0,
+        "eventRecoveryAmountUp": 20,
+        "eventEffectUp": 10,
+        "failRateDrop": 5,
+        "vitalCostDrop": 5,
+        "wizVitalBonus": 0
+      },
+      {
+        "filled": true,
+        "bonus": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "initialBonus": [
+          0,
+          16,
+          0,
+          0,
+          0,
+          0
+        ],
+        "hintBonus": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          5
+        ],
+        "hintLevel": 0,
+        "youQing": 0,
+        "ganJing": 18,
+        "xunLian": 5,
+        "initialJiBan": 16,
+        "saiHou": 0,
+        "hintProbIncrease": 0,
+        "deYiLv": 0,
+        "eventRecoveryAmountUp": 23,
+        "eventEffectUp": 11,
+        "failRateDrop": 6,
+        "vitalCostDrop": 6,
+        "wizVitalBonus": 0
+      },
+      {
+        "filled": true,
+        "bonus": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "initialBonus": [
+          0,
+          18,
+          0,
+          0,
+          0,
+          0
+        ],
+        "hintBonus": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          5
+        ],
+        "hintLevel": 0,
+        "youQing": 0,
+        "ganJing": 21,
+        "xunLian": 5,
+        "initialJiBan": 18,
+        "saiHou": 0,
+        "hintProbIncrease": 0,
+        "deYiLv": 0,
+        "eventRecoveryAmountUp": 26,
+        "eventEffectUp": 13,
+        "failRateDrop": 8,
+        "vitalCostDrop": 8,
+        "wizVitalBonus": 0
+      },
+      {
+        "filled": true,
+        "bonus": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "initialBonus": [
+          0,
+          20,
+          0,
+          0,
+          0,
+          0
+        ],
+        "hintBonus": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          5
+        ],
+        "hintLevel": 0,
+        "youQing": 0,
+        "ganJing": 25,
+        "xunLian": 5,
+        "initialJiBan": 20,
+        "saiHou": 0,
+        "hintProbIncrease": 0,
+        "deYiLv": 0,
+        "eventRecoveryAmountUp": 30,
+        "eventEffectUp": 15,
+        "failRateDrop": 10,
+        "vitalCostDrop": 10,
+        "wizVitalBonus": 0
+      },
+      {
+        "filled": true,
+        "bonus": [
+          0,
+          1,
+          0,
+          0,
+          0,
+          0
+        ],
+        "initialBonus": [
+          0,
+          20,
+          0,
+          0,
+          0,
+          0
+        ],
+        "hintBonus": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          5
+        ],
+        "hintLevel": 0,
+        "youQing": 0,
+        "ganJing": 25,
+        "xunLian": 5,
+        "initialJiBan": 20,
+        "saiHou": 0,
+        "hintProbIncrease": 0,
+        "deYiLv": 0,
+        "eventRecoveryAmountUp": 30,
+        "eventEffectUp": 15,
+        "failRateDrop": 10,
+        "vitalCostDrop": 10,
+        "wizVitalBonus": 0
+      }
+    ]
   }
 }

@@ -1,3 +1,24 @@
+# 无人岛剧本适配（进行中）
+
+本分支基于 Legend 分支，正在适配「無人島へようこそ」剧本，剧本机制参考 [umasim](https://github.com/mee1080/umasim)。
+
+## Linux 编译与运行
+
+```bash
+sudo apt install build-essential cmake zlib1g-dev libasio-dev   # libasio-dev 可选，没有时不支持 websocket 模式
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j
+```
+
+- `build/UmaAiTestScore`：用手写逻辑自对局测分，在 `build/` 目录下运行（读取 `../db` 和 `../ConfigTemplate/testConfig.json`）。
+- `build/UmaAi`：主程序，在放有 `db/`、`aiConfig_cpu.json`（可从 `ConfigTemplate` 复制）的目录下运行，默认读取同目录的 `thisTurn.json`。
+
+## 支援卡数据
+
+新卡可以用 `Scripts/import_umasim_card/import_cards.py` 从 umasim 的 `data/support_card.txt` 导入（只导入各突破的数值，固有效果需另行处理）。
+
+---
+
 # 2024.6.26 New scenario started. UmaAi needs to be updated
 ### What is needed?
 #### 1.Analyzing scenario mechanics
