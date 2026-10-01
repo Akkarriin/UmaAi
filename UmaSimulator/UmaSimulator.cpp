@@ -42,6 +42,8 @@ int main()
 	main_playerPlay();
 #elif defined UMAAI_TESTMUJINTO
 	main_testMujinto();
+#elif defined UMAAI_TUNEHW
+	main_tuneHandwritten();
 #elif defined UMAAI_MAINAI
 	main_ai();
 #else

@@ -4,22 +4,51 @@
 #include "../Search/Search.h"
 
 
-const double statusWeights[5] = { 6,6,6,6,6 };
-const double jibanValue = 3;
-const double vitalFactorStart = 3;
-const double vitalFactorEnd = 10;
-const double vitalScaleTraining = 1.0;
+#include <fstream>
+#include "../External/json.hpp"
 
-const double reserveStatusFactor = 50;//控属性时给每回合预留多少，从0逐渐增加到这个数字
+HandwrittenParams handwrittenParams;
 
-const double smallFailValue = -300;
-const double bigFailValue = -800;
-const double outgoingBonusIfNotFullMotivationStart = 100;//掉心情时提高外出分数
-const double outgoingBonusIfNotFullMotivationEnd = 800;//掉心情时提高外出分数
-const double raceBonus = 0;//比赛收益，不考虑体力
+const char* const HandwrittenParams::names[HandwrittenParams::NUM] = {
+  "statusWeight","jibanValue","vitalFactorStart","vitalFactorEnd","vitalScaleTraining","reserveStatusFactor",
+  "smallFailValue","bigFailValue","outgoingBonusStart","outgoingBonusEnd","raceBonus",
+  "friendFirstClickValue","friendBeforeUnlockValue","friendAfterUnlockValue","friendOutingValue",
+  "mj_pioneerPtValue","mj_keepTicketValue","mj_ticketNearThreshold",
+  "mj_planHouseLv2Value","mj_planHouseLv3Value","mj_planSpeedExtra","mj_planJukurenFactor",
+  "mj_planBaseWeight","mj_planCardWeight","mj_planLevelFactor"
+};
+double HandwrittenParams::* const HandwrittenParams::members[HandwrittenParams::NUM] = {
+  &HandwrittenParams::statusWeight,&HandwrittenParams::jibanValue,&HandwrittenParams::vitalFactorStart,
+  &HandwrittenParams::vitalFactorEnd,&HandwrittenParams::vitalScaleTraining,&HandwrittenParams::reserveStatusFactor,
+  &HandwrittenParams::smallFailValue,&HandwrittenParams::bigFailValue,&HandwrittenParams::outgoingBonusStart,
+  &HandwrittenParams::outgoingBonusEnd,&HandwrittenParams::raceBonus,
+  &HandwrittenParams::friendFirstClickValue,&HandwrittenParams::friendBeforeUnlockValue,&HandwrittenParams::friendAfterUnlockValue,&HandwrittenParams::friendOutingValue,
+  &HandwrittenParams::mj_pioneerPtValue,&HandwrittenParams::mj_keepTicketValue,&HandwrittenParams::mj_ticketNearThreshold,
+  &HandwrittenParams::mj_planHouseLv2Value,&HandwrittenParams::mj_planHouseLv3Value,&HandwrittenParams::mj_planSpeedExtra,
+  &HandwrittenParams::mj_planJukurenFactor,&HandwrittenParams::mj_planBaseWeight,&HandwrittenParams::mj_planCardWeight,
+  &HandwrittenParams::mj_planLevelFactor
+};
 
-const double mj_pioneerPtValue = 2.0;//无人岛：大好评之前每点发展pt的估值（第4步再细调）
-const double mj_keepTicketValue = 1000;//无人岛：留着岛训练券以后用的估值
+bool HandwrittenParams::loadJson(const std::string& path)
+{
+  std::ifstream f(path);
+  if (!f.good())return false;
+  nlohmann::json j;
+  f >> j;
+  for (int i = 0; i < NUM; i++)
+    if (j.contains(names[i]))
+      this->*members[i] = j[names[i]].get<double>();
+  return true;
+}
+
+void HandwrittenParams::saveJson(const std::string& path) const
+{
+  nlohmann::json j;
+  for (int i = 0; i < NUM; i++)
+    j[names[i]] = this->*members[i];
+  std::ofstream f(path);
+  f << j.dump(2) << std::endl;
+}
 
 //一个分段函数，用来控属性
 inline double statusSoftFunction(double x, double reserve, double reserveInvX2)//reserve是控属性保留空间（降低权重），reserveInvX2是1/(2*reserve)
@@ -30,10 +59,10 @@ inline double statusSoftFunction(double x, double reserve, double reserveInvX2)/
 }
 
 //某次训练增加gain（速耐力根智pt）的估值，考虑控属性
-static double statusGainEvaluationSingle(const Game& g, const int16_t* gain, int remainTrainingTurns)
+static double statusGainEvaluationSingle(const HandwrittenParams& P, const Game& g, const int16_t* gain, int remainTrainingTurns)
 {
   int remainTurn = remainTrainingTurns;//这次训练后还有几个训练回合
-  double reserve = reserveStatusFactor * remainTurn * (1 - double(remainTurn) / (TOTAL_TURN * 2));
+  double reserve = P.reserveStatusFactor * remainTurn * (1 - double(remainTurn) / (TOTAL_TURN * 2));
   double reserveInvX2 = 1 / (2 * reserve);
 
   double finalBonus0 = 170;//结算时还会加的属性
@@ -44,15 +73,15 @@ static double statusGainEvaluationSingle(const Game& g, const int16_t* gain, int
     double remain = g.fiveStatusLimit[sta] - g.fiveStatus[sta] - finalBonus0;
     double s0 = statusSoftFunction(-remain, reserve, reserveInvX2);
     double s1 = statusSoftFunction(gain[sta] - remain, reserve, reserveInvX2);
-    res += statusWeights[sta] * (s1 - s0);
+    res += P.statusWeight * (s1 - s0);
   }
   res += g.gameSettings.ptScoreRate * gain[5];
   return res;
 }
 
-static void statusGainEvaluation(const Game& g, double* result, int remainTrainingTurns) { //result依次是五种训练的估值
+static void statusGainEvaluation(const HandwrittenParams& P, const Game& g, double* result, int remainTrainingTurns) { //result依次是五种训练的估值
   for (int tra = 0; tra < 5; tra++)
-    result[tra] = statusGainEvaluationSingle(g, g.trainValue[tra], remainTrainingTurns);
+    result[tra] = statusGainEvaluationSingle(P, g, g.trainValue[tra], remainTrainingTurns);
 }
 
 //还有几个训练回合（不含当前回合）
@@ -92,18 +121,18 @@ static double vitalEvaluation(int vital, int maxVital)
 }
 
 //无人岛：获得pioneerPt点发展pt的估值。只有达到大好评（requiredPt2）之前的部分有价值
-static double pioneerPtEvaluation(const Game& game, int pioneerPt)
+static double pioneerPtEvaluation(const HandwrittenParams& P, const Game& game, int pioneerPt)
 {
   if (!game.mj_canGainPioneerPt())
     return 0;
   int need = game.mj_requiredPt2 - game.mj_pioneerPt;
   if (need <= 0)
     return 0;
-  return mj_pioneerPtValue * std::min(need, pioneerPt);
+  return P.mj_pioneerPtValue * std::min(need, pioneerPt);
 }
 
 //留着岛训练券的估值：快拿到新券（会溢出）或者剩下能用的回合不多时就是0
-static double keepTicketEvaluation(const Game& game)
+static double keepTicketEvaluation(const HandwrittenParams& P, const Game& game)
 {
   int usableTurns = 0;//以后还能岛训练的回合数
   //经典年合宿结束时多半会补建并把券数设为1，手里的券要在合宿前用掉
@@ -120,32 +149,32 @@ static double keepTicketEvaluation(const Game& game)
   {
     int next = game.mj_pioneerPt < game.mj_requiredPt1 ? game.mj_requiredPt1 :
       game.mj_pioneerPt < game.mj_requiredPt2 ? game.mj_requiredPt2 : -1;
-    if (next >= 0 && next - game.mj_pioneerPt <= 150)
+    if (next >= 0 && next - game.mj_pioneerPt <= P.mj_ticketNearThreshold)
       return 0;
   }
-  return mj_keepTicketValue;
+  return P.mj_keepTicketValue;
 }
 
-static double islandTrainingEvaluation(const Game& game, int remainTrainingTurns)
+static double islandTrainingEvaluation(const HandwrittenParams& P, const Game& game, int remainTrainingTurns)
 {
-  double value = statusGainEvaluationSingle(game, game.mj_islandValue, remainTrainingTurns);
-  value += pioneerPtEvaluation(game, game.mj_islandPioneerPt);
+  double value = statusGainEvaluationSingle(P, game, game.mj_islandValue, remainTrainingTurns);
+  value += pioneerPtEvaluation(P, game, game.mj_islandPioneerPt);
   //全部支援卡羁绊+10
   for (int p = 0; p < 6; p++)
   {
     const Person& ps = game.persons[p];
     if (ps.personType == PersonType_card && ps.friendship < 80)
-      value += std::min(10, 80 - ps.friendship) * jibanValue;
+      value += std::min(10, 80 - ps.friendship) * P.jibanValue;
   }
-  value -= keepTicketEvaluation(game);
+  value -= keepTicketEvaluation(P, game);
   return value;
 }
 
-double getRestOutingEvaluation(const Game& game, Action& bestAction, double vitalFactor, int maxVitalEquvalant, double vitalEvalBeforeTrain, int remainTrainingTurns)
+double getRestOutingEvaluation(const HandwrittenParams& P, const Game& game, Action& bestAction, double vitalFactor, int maxVitalEquvalant, double vitalEvalBeforeTrain, int remainTrainingTurns)
 {
   double motivationValue = 0;
   if (game.motivation < 5)
-    motivationValue = outgoingBonusIfNotFullMotivationStart + (game.turn / double(TOTAL_TURN)) * (outgoingBonusIfNotFullMotivationEnd - outgoingBonusIfNotFullMotivationStart);
+    motivationValue = P.outgoingBonusStart + (game.turn / double(TOTAL_TURN)) * (P.outgoingBonusEnd - P.outgoingBonusStart);
 
   if (game.isXiahesu())
   {
@@ -182,8 +211,8 @@ double getRestOutingEvaluation(const Game& game, Action& bestAction, double vita
     friendVitalGain = int(friendVitalGain * game.friend_vitalBonus);
     int vitalAfterOuting = std::min(maxVitalEquvalant, friendVitalGain + game.vital);
     outingValue += vitalFactor * (vitalEvaluation(vitalAfterOuting, game.maxVital) - vitalEvalBeforeTrain);
-    outingValue += 150;//属性与得意率
-    outingValue += pioneerPtEvaluation(game, 30 + (game.friend_level - 20) * 50 / 30);
+    outingValue += P.friendOutingValue;//属性与得意率
+    outingValue += pioneerPtEvaluation(P, game, 30 + (game.friend_level - 20) * 50 / 30);
   }
 
   if (PrintHandwrittenLogicValueForDebug)
@@ -197,33 +226,32 @@ double getRestOutingEvaluation(const Game& game, Action& bestAction, double vita
 }
 
 //无人岛：建设计划里加一个设施的估值。海之家Lv1最优先，其次按卡组里各类型支援卡的张数升级，本能优于熟练
-const double mj_planHouseValue[4] = { 0, 1000, 3, 4 };//海之家Lv1~3
-const double mj_planSpeedExtra = 1.0;//速度设施额外的权重
-const double mj_planJukurenFactor = 0.6;//熟练相对本能的估值
-const double mj_planBaseWeight = 1;//卡组里没有的类型的权重
-const double mj_planCardWeight = 2;//卡组里每张该类型支援卡增加的权重
-const double mj_planLevelFactor = 0.15;//等级越高越优先
-static double planCandidateEvaluation(const Game& game, int idx)
+static double planCandidateEvaluation(const HandwrittenParams& P, const Game& game, int idx)
 {
   MujintoFacility f = game.mj_planCandidate(idx);
   if (f.type == MJ_house)
-    return mj_planHouseValue[f.level];
-  double weight = mj_planBaseWeight;
+    return f.level == 1 ? 1000 : f.level == 2 ? P.mj_planHouseLv2Value : P.mj_planHouseLv3Value;
+  double weight = P.mj_planBaseWeight;
   for (int i = 0; i < 6; i++)
   {
     const Person& p = game.persons[i];
     if (p.personType == PersonType_card && p.cardParam.cardType == f.type)
-      weight += mj_planCardWeight;
+      weight += P.mj_planCardWeight;
   }
   if (f.type == MJ_speed)
-    weight += mj_planSpeedExtra;
-  double value = weight * (1 + mj_planLevelFactor * f.level);
+    weight += P.mj_planSpeedExtra;
+  double value = weight * (1 + P.mj_planLevelFactor * f.level);
   if (f.jukuren)
-    value *= mj_planJukurenFactor;
+    value *= P.mj_planJukurenFactor;
   return value;
 }
 
 Action Evaluator::handWrittenStrategy(const Game& game)
+{
+  return handWrittenStrategy(game, handwrittenParams);
+}
+
+Action Evaluator::handWrittenStrategy(const Game& game, const HandwrittenParams& P)
 {
   auto allActions = game.getAllLegalActions();
   if (allActions.size() == 1)
@@ -237,7 +265,7 @@ Action Evaluator::handWrittenStrategy(const Game& game)
     double bestValue = -1e9;
     for (const Action& a : allActions)
     {
-      double v = planCandidateEvaluation(game, a.idx);
+      double v = planCandidateEvaluation(P, game, a.idx);
       if (v > bestValue)
       {
         bestValue = v;
@@ -277,14 +305,14 @@ Action Evaluator::handWrittenStrategy(const Game& game)
 
     double bestValue = -1e4;
 
-    double vitalFactor = vitalFactorStart + (game.turn / double(TOTAL_TURN)) * (vitalFactorEnd - vitalFactorStart);
+    double vitalFactor = P.vitalFactorStart + (game.turn / double(TOTAL_TURN)) * (P.vitalFactorEnd - P.vitalFactorStart);
 
     int maxVitalEquvalant = calculateMaxVitalEquvalant(game, remainTrainingTurns);
     double vitalEvalBeforeTrain = vitalEvaluation(std::min(maxVitalEquvalant, int(game.vital)), game.maxVital);
 
     //外出/休息
     Action restAction;
-    double restValue = getRestOutingEvaluation(game, restAction, vitalFactor, maxVitalEquvalant, vitalEvalBeforeTrain, remainTrainingTurns);
+    double restValue = getRestOutingEvaluation(P, game, restAction, vitalFactor, maxVitalEquvalant, vitalEvalBeforeTrain, remainTrainingTurns);
     if (restValue > bestValue)
     {
       bestValue = restValue;
@@ -294,11 +322,11 @@ Action Evaluator::handWrittenStrategy(const Game& game)
     //比赛
     if (game.isRaceAvailable())
     {
-      double value = raceBonus;
+      double value = P.raceBonus;
 
       int vitalAfterRace = std::min(maxVitalEquvalant, -15 + game.vital);
       value += vitalFactor * (vitalEvaluation(vitalAfterRace, game.maxVital) - vitalEvalBeforeTrain);
-      value += pioneerPtEvaluation(game, game.mj_calcRacePioneerPt(false));
+      value += pioneerPtEvaluation(P, game, game.mj_calcRacePioneerPt(false));
 
       if (PrintHandwrittenLogicValueForDebug)
         std::cout << " " << value << std::endl;
@@ -312,7 +340,7 @@ Action Evaluator::handWrittenStrategy(const Game& game)
     //岛训练（不耗体力，不会失败）
     if (game.mj_isIslandTrainingAvailable())
     {
-      double value = islandTrainingEvaluation(game, remainTrainingTurns);
+      double value = islandTrainingEvaluation(P, game, remainTrainingTurns);
       if (PrintHandwrittenLogicValueForDebug)
         std::cout << "岛训练 " << value << std::endl;
       if (value > bestValue)
@@ -325,12 +353,12 @@ Action Evaluator::handWrittenStrategy(const Game& game)
     //训练
     {
       double statusGainE[5];
-      statusGainEvaluation(game, statusGainE, remainTrainingTurns);
+      statusGainEvaluation(P, game, statusGainE, remainTrainingTurns);
 
       for (int tra = 0; tra < 5; tra++)
       {
         double value = statusGainE[tra];
-        value += pioneerPtEvaluation(game, game.mj_trainPioneerPt[tra]);
+        value += pioneerPtEvaluation(P, game, game.mj_trainPioneerPt[tra]);
 
         //处理hint和羁绊
         int cardHintNum = 0;//所有hint随机取一个，所以打分的时候取平均
@@ -352,11 +380,11 @@ Action Evaluator::handWrittenStrategy(const Game& game)
           if (p.personType == PersonType_scenarioCard)//友人卡
           {
             if (game.friend_stage == FriendStage_notClicked)
-              value += 150;
+              value += P.friendFirstClickValue;
             else if (game.friend_stage == FriendStage_beforeUnlockOutgoing)
-              value += 60;
+              value += P.friendBeforeUnlockValue;
             else
-              value += 40;
+              value += P.friendAfterUnlockValue;
           }
           else if (p.personType == PersonType_card)
           {
@@ -371,13 +399,13 @@ Action Evaluator::handWrittenStrategy(const Game& game)
               }
               jibanAdd = std::min(double(80 - p.friendship), jibanAdd);
 
-              value += jibanAdd * jibanValue;
+              value += jibanAdd * P.jibanValue;
             }
 
             if (p.isHint)
             {
               double hintBonus = p.cardParam.hintLevel == 0 ?
-                (1.6 * (statusWeights[0] + statusWeights[1] + statusWeights[2] + statusWeights[3] + statusWeights[4])) :
+                (1.6 * 5 * P.statusWeight) :
                 game.gameSettings.hintPtRate * game.gameSettings.ptScoreRate * p.cardParam.hintLevel;
               value += hintBonus * hintProb;
             }
@@ -385,7 +413,7 @@ Action Evaluator::handWrittenStrategy(const Game& game)
         }
 
         int vitalAfterTrain = std::min(maxVitalEquvalant, game.trainVitalChange[tra] + game.vital);
-        value += vitalScaleTraining * vitalFactor * (vitalEvaluation(vitalAfterTrain, game.maxVital) - vitalEvalBeforeTrain);
+        value += P.vitalScaleTraining * vitalFactor * (vitalEvaluation(vitalAfterTrain, game.maxVital) - vitalEvalBeforeTrain);
 
         //到目前为止都是训练成功的value
         double failRate = game.failRate[tra];
@@ -393,7 +421,7 @@ Action Evaluator::handWrittenStrategy(const Game& game)
         {
           double bigFailProb = failRate;
           if (failRate < 20)bigFailProb = 0;
-          double failValueAvg = 0.01 * bigFailProb * bigFailValue + (1 - 0.01 * bigFailProb) * smallFailValue;
+          double failValueAvg = 0.01 * bigFailProb * P.bigFailValue + (1 - 0.01 * bigFailProb) * P.smallFailValue;
 
           value = 0.01 * failRate * failValueAvg + (1 - 0.01 * failRate) * value;
         }

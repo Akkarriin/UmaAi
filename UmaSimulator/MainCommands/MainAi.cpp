@@ -7,6 +7,7 @@
 #include <chrono>  // for std::chrono::seconds
 
 #include "../Game/Game.h"
+#include "../NeuralNet/Evaluator.h"
 #include "../GameDatabase/GameDatabase.h"
 #include "../GameDatabase/GameConfig.h"
 #include "../Search/Search.h"
@@ -97,6 +98,9 @@ void main_ai()
 #else
 		GameConfig::load("./aiConfig.json");
 #endif
+		//手写策略参数：有 handwrittenParams.json（自动调参的结果）就用它覆盖默认值
+		if (handwrittenParams.loadJson("./handwrittenParams.json"))
+			cout << "已读取 handwrittenParams.json" << endl;
 		//GameDatabase::loadTranslation("./db/text_data.json");
 		GameDatabase::loadUmas("./db/umaDB.json");
 		//GameDatabase::loadCards("./db/card"); // 载入并优先使用手动支援卡数据

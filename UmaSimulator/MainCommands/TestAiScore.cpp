@@ -50,8 +50,9 @@ namespace TestAiScore
   const int searchN = 2048;
   int gamesEveryThread = (int)ceil((double)totalGames / threadNum / batchSize);
 #else
-  const bool handWrittenEvaluationTest = true;
-  const int searchN = 1;
+  //环境变量 UMAAI_SEARCH_N 大于1时改用蒙特卡洛搜索（手写策略做推演），用来测带搜索的分数
+  bool handWrittenEvaluationTest = true;
+  int searchN = 1;
   int gamesEveryThread = totalGames / threadNum;
 #endif
   /*
@@ -149,7 +150,8 @@ namespace TestAiScore
           action = Evaluator::handWrittenStrategy(game);
         }
         else {
-          action = search.runSearch(game, rand);
+          auto legal = game.getAllLegalActions();
+          action = legal.size() == 1 ? legal[0] : search.runSearch(game, rand);
         }
         game.applyAction(rand, action);
       }
@@ -264,6 +266,19 @@ void main_testAiScore()
   GameDatabase::loadDBCards("db/cardDB.json");
   test = TestConfig::loadFile("testConfig.json");  
   */
+  //环境变量 UMAAI_HW_PARAMS 指定手写策略参数文件（自动调参的结果）
+  const char* hwParamsEnv = getenv("UMAAI_HW_PARAMS");
+  if (hwParamsEnv != nullptr && !handwrittenParams.loadJson(hwParamsEnv))
+    cout << "读不到 " << hwParamsEnv << endl;
+#if USE_BACKEND == BACKEND_NONE
+  const char* searchNEnv = getenv("UMAAI_SEARCH_N");
+  if (searchNEnv != nullptr && atoi(searchNEnv) > 1)
+  {
+    searchN = atoi(searchNEnv);
+    handWrittenEvaluationTest = false;
+    searchParam = SearchParam(searchN, radicalFactor);
+  }
+#endif
   cout << test.explain() << endl;
   cout << "正在测试……\033[?25l" << endl;
   for (int i = 0; i < 700; i++)segmentStats[i] = 0;

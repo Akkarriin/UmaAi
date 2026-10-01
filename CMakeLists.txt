@@ -7,6 +7,7 @@ project(UmaAi CXX)
 #   build/UmaAi          主程序（UMAAI_MAINAI），在仓库根目录运行（读取 ./db、./aiConfig_cpu.json、./thisTurn.json）
 #   build/UmaAiTestScore 自对局测分（UMAAI_TESTSCORE），在 build/ 目录运行（读取 ../db、../ConfigTemplate/testConfig.json）
 #   build/UmaAiTestMujinto 无人岛规则的数值自检（UMAAI_TESTMUJINTO），在 build/ 目录运行
+#   build/UmaAiTuneHandwritten 手写策略自动调参（UMAAI_TUNEHW），在 build/ 目录运行，说明见 Tests/tuneHandwritten.cpp
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -75,3 +76,4 @@ endfunction()
 umaai_add_target(UmaAi UMAAI_MAINAI)
 umaai_add_target(UmaAiTestScore UMAAI_TESTSCORE)
 umaai_add_target(UmaAiTestMujinto UMAAI_TESTMUJINTO)
+umaai_add_target(UmaAiTuneHandwritten UMAAI_TUNEHW)
